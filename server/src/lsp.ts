@@ -35,13 +35,14 @@ import {
   CodeActionParams,
   TextEdit,
   MarkupKind,
-} from 'vscode-languageserver/node.js';
+} from "vscode-languageserver/node.js";
 
-import { TextDocument } from 'vscode-languageserver-textdocument';
+import { TextDocument } from "vscode-languageserver-textdocument";
 
 // Dynamic import for @strudel/mini to ensure console.log patch runs first
 // @ts-ignore - @strudel/mini has no type declarations
-const { parse: parseMini, getLeaves: getMiniLeaves } = await import('@strudel/mini');
+const { parse: parseMini, getLeaves: getMiniLeaves } =
+  await import("@strudel/mini");
 
 // Restore console.log after imports (connection.console.log goes to the right place anyway)
 console.log = originalLog;
@@ -57,60 +58,201 @@ let dynamicBanks: string[] = [];
 // Default sample names (fallback when not connected to engine)
 const DEFAULT_SAMPLE_NAMES = [
   // Drums
-  'bd', 'sd', 'hh', 'oh', 'cp', 'mt', 'ht', 'lt', 'rim', 'cb', 'cr', 'rd', 'sh', 'tb', 'perc', 'misc', 'fx',
+  "bd",
+  "sd",
+  "hh",
+  "oh",
+  "cp",
+  "mt",
+  "ht",
+  "lt",
+  "rim",
+  "cb",
+  "cr",
+  "rd",
+  "sh",
+  "tb",
+  "perc",
+  "misc",
+  "fx",
   // Piano
-  'piano',
+  "piano",
   // Synths (superdough oscillators)
-  'sine', 'saw', 'square', 'triangle', 'sawtooth', 'tri', 'white', 'pink', 'brown',
+  "sine",
+  "saw",
+  "square",
+  "triangle",
+  "sawtooth",
+  "tri",
+  "white",
+  "pink",
+  "brown",
   // ZZFX chip synths
-  'zzfx', 'z_sine', 'z_sawtooth', 'z_triangle', 'z_square', 'z_tan', 'z_noise',
+  "zzfx",
+  "z_sine",
+  "z_sawtooth",
+  "z_triangle",
+  "z_square",
+  "z_tan",
+  "z_noise",
   // Misc samples
-  'casio', 'jazz', 'metal', 'east', 'space', 'wind', 'insect', 'crow', 'numbers', 'mridangam',
+  "casio",
+  "jazz",
+  "metal",
+  "east",
+  "space",
+  "wind",
+  "insect",
+  "crow",
+  "numbers",
+  "mridangam",
   // Instruments from VCSL
-  'violin', 'viola', 'cello', 'bass', 'flute', 'oboe', 'clarinet', 'bassoon',
-  'trumpet', 'horn', 'trombone', 'tuba', 'glockenspiel', 'xylophone', 'vibraphone',
+  "violin",
+  "viola",
+  "cello",
+  "bass",
+  "flute",
+  "oboe",
+  "clarinet",
+  "bassoon",
+  "trumpet",
+  "horn",
+  "trombone",
+  "tuba",
+  "glockenspiel",
+  "xylophone",
+  "vibraphone",
 ];
 
 // Note names
 const NOTE_NAMES = [
-  'c', 'd', 'e', 'f', 'g', 'a', 'b',
-  'cs', 'ds', 'fs', 'gs', 'as', // sharps
-  'db', 'eb', 'gb', 'ab', 'bb', // flats
+  "c",
+  "d",
+  "e",
+  "f",
+  "g",
+  "a",
+  "b",
+  "cs",
+  "ds",
+  "fs",
+  "gs",
+  "as", // sharps
+  "db",
+  "eb",
+  "gb",
+  "ab",
+  "bb", // flats
 ];
 
 // Octaves
-const OCTAVES = ['0', '1', '2', '3', '4', '5', '6', '7', '8'];
+const OCTAVES = ["0", "1", "2", "3", "4", "5", "6", "7", "8"];
 
 // Scale names
 const SCALE_NAMES = [
-  'major', 'minor', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'locrian', 'aeolian', 'ionian',
-  'harmonicMinor', 'melodicMinor', 'pentatonic', 'blues', 'chromatic',
-  'wholetone', 'diminished', 'augmented', 'bebop', 'hungarian', 'spanish',
+  "major",
+  "minor",
+  "dorian",
+  "phrygian",
+  "lydian",
+  "mixolydian",
+  "locrian",
+  "aeolian",
+  "ionian",
+  "harmonicMinor",
+  "melodicMinor",
+  "pentatonic",
+  "blues",
+  "chromatic",
+  "wholetone",
+  "diminished",
+  "augmented",
+  "bebop",
+  "hungarian",
+  "spanish",
 ];
 
 // Voicing mode names (used with .mode() function)
 // Format: "mode" or "mode:anchor" e.g., "above:c3"
 // Single letters (u, v, w, x, y, z) are shorthand voicing modes used in chord notation like "Am:u:6"
 const VOICING_MODES = [
-  'above', 'below', 'between', 'duck', 'root', 'rootless',
-  'u', 'v', 'w', 'x', 'y', 'z',
+  "above",
+  "below",
+  "between",
+  "duck",
+  "root",
+  "rootless",
+  "u",
+  "v",
+  "w",
+  "x",
+  "y",
+  "z",
 ];
 
 // Effects/modifiers in mini-notation
 const MINI_OPERATORS = [
-  { label: '*', detail: 'Speed up (fast)', documentation: 'Multiply speed: bd*2 plays twice as fast' },
-  { label: '/', detail: 'Slow down', documentation: 'Divide speed: bd/2 plays twice as slow' },
-  { label: '!', detail: 'Replicate', documentation: 'Repeat element: bd!3 plays bd three times' },
-  { label: '?', detail: 'Degrade/maybe', documentation: 'Random chance: bd? sometimes plays' },
-  { label: '@', detail: 'Weight', documentation: 'Set duration weight: bd@2 takes twice as long' },
-  { label: '~', detail: 'Rest/silence', documentation: 'Silent step' },
-  { label: '<>', detail: 'Alternate', documentation: 'Alternate between patterns each cycle' },
-  { label: '[]', detail: 'Subsequence', documentation: 'Group elements into subsequence' },
-  { label: '{}', detail: 'Polyrhythm', documentation: 'Play patterns in parallel with different lengths' },
-  { label: '(,)', detail: 'Euclidean rhythm', documentation: 'Euclidean distribution: bd(3,8) = 3 hits over 8 steps' },
-  { label: ':', detail: 'Sample index', documentation: 'Select sample variant: bd:2' },
-  { label: ',', detail: 'Parallel', documentation: 'Play patterns in parallel: bd, hh' },
-  { label: '|', detail: 'Random choice', documentation: 'Random choice: bd | sd' },
+  {
+    label: "*",
+    detail: "Speed up (fast)",
+    documentation: "Multiply speed: bd*2 plays twice as fast",
+  },
+  {
+    label: "/",
+    detail: "Slow down",
+    documentation: "Divide speed: bd/2 plays twice as slow",
+  },
+  {
+    label: "!",
+    detail: "Replicate",
+    documentation: "Repeat element: bd!3 plays bd three times",
+  },
+  {
+    label: "?",
+    detail: "Degrade/maybe",
+    documentation: "Random chance: bd? sometimes plays",
+  },
+  {
+    label: "@",
+    detail: "Weight",
+    documentation: "Set duration weight: bd@2 takes twice as long",
+  },
+  { label: "~", detail: "Rest/silence", documentation: "Silent step" },
+  {
+    label: "<>",
+    detail: "Alternate",
+    documentation: "Alternate between patterns each cycle",
+  },
+  {
+    label: "[]",
+    detail: "Subsequence",
+    documentation: "Group elements into subsequence",
+  },
+  {
+    label: "{}",
+    detail: "Polyrhythm",
+    documentation: "Play patterns in parallel with different lengths",
+  },
+  {
+    label: "(,)",
+    detail: "Euclidean rhythm",
+    documentation: "Euclidean distribution: bd(3,8) = 3 hits over 8 steps",
+  },
+  {
+    label: ":",
+    detail: "Sample index",
+    documentation: "Select sample variant: bd:2",
+  },
+  {
+    label: ",",
+    detail: "Parallel",
+    documentation: "Play patterns in parallel: bd, hh",
+  },
+  {
+    label: "|",
+    detail: "Random choice",
+    documentation: "Random choice: bd | sd",
+  },
 ];
 
 // Function signatures with parameters
@@ -127,7039 +269,9335 @@ interface FunctionSignature {
 
 const STRUDEL_FUNCTIONS: FunctionSignature[] = [
   {
-    name: 's',
-    detail: 'Sound/sample',
-    documentation: 'Play a sound or sample',
-    signatures: [{
-      label: 's(pattern)',
-      parameters: [{ label: 'pattern', documentation: 'Mini-notation pattern of sample names, e.g., "bd sd hh"' }],
-    }],
-  },
-  {
-    name: 'sound',
-    detail: 'Sound/sample (alias for s)',
-    documentation: 'Play a sound or sample',
-    signatures: [{
-      label: 'sound(pattern)',
-      parameters: [{ label: 'pattern', documentation: 'Mini-notation pattern of sample names' }],
-    }],
-  },
-  {
-    name: 'n',
-    detail: 'Note number',
-    documentation: 'Set note by MIDI number or pattern',
-    signatures: [{
-      label: 'n(pattern)',
-      parameters: [{ label: 'pattern', documentation: 'Pattern of MIDI note numbers, e.g., "0 2 4 7"' }],
-    }],
-  },
-  {
-    name: 'note',
-    detail: 'Note name',
-    documentation: 'Set note by name',
-    signatures: [{
-      label: 'note(pattern)',
-      parameters: [{ label: 'pattern', documentation: 'Pattern of note names, e.g., "c4 e4 g4"' }],
-    }],
-  },
-  {
-    name: 'fast',
-    detail: 'Speed up pattern',
-    documentation: 'Speed up the pattern by a factor',
-    signatures: [{
-      label: 'fast(factor)',
-      parameters: [{ label: 'factor', documentation: 'Speed multiplier (2 = twice as fast)' }],
-    }],
-  },
-  {
-    name: 'slow',
-    detail: 'Slow down pattern',
-    documentation: 'Slow down the pattern by a factor',
-    signatures: [{
-      label: 'slow(factor)',
-      parameters: [{ label: 'factor', documentation: 'Speed divisor (2 = twice as slow)' }],
-    }],
-  },
-  {
-    name: 'gain',
-    detail: 'Volume',
-    documentation: 'Set the volume/gain',
-    signatures: [{
-      label: 'gain(amount)',
-      parameters: [{ label: 'amount', documentation: 'Volume level (0-1, can go higher for boost)' }],
-    }],
-  },
-  {
-    name: 'pan',
-    detail: 'Stereo pan',
-    documentation: 'Set stereo panning',
-    signatures: [{
-      label: 'pan(position)',
-      parameters: [{ label: 'position', documentation: 'Pan position (0 = left, 0.5 = center, 1 = right)' }],
-    }],
-  },
-  {
-    name: 'speed',
-    detail: 'Playback speed',
-    documentation: 'Change sample playback speed (affects pitch)',
-    signatures: [{
-      label: 'speed(rate)',
-      parameters: [{ label: 'rate', documentation: 'Playback rate (1 = normal, 2 = octave up, 0.5 = octave down, negative = reverse)' }],
-    }],
-  },
-  {
-    name: 'lpf',
-    detail: 'Low-pass filter',
-    documentation: 'Apply a low-pass filter',
-    signatures: [{
-      label: 'lpf(frequency)',
-      parameters: [{ label: 'frequency', documentation: 'Cutoff frequency in Hz (e.g., 1000)' }],
-    }, {
-      label: 'lpf(frequency, resonance)',
-      parameters: [
-        { label: 'frequency', documentation: 'Cutoff frequency in Hz' },
-        { label: 'resonance', documentation: 'Filter resonance (Q factor)' },
-      ],
-    }],
-  },
-  {
-    name: 'hpf',
-    detail: 'High-pass filter',
-    documentation: 'Apply a high-pass filter',
-    signatures: [{
-      label: 'hpf(frequency)',
-      parameters: [{ label: 'frequency', documentation: 'Cutoff frequency in Hz (e.g., 200)' }],
-    }, {
-      label: 'hpf(frequency, resonance)',
-      parameters: [
-        { label: 'frequency', documentation: 'Cutoff frequency in Hz' },
-        { label: 'resonance', documentation: 'Filter resonance (Q factor)' },
-      ],
-    }],
-  },
-  {
-    name: 'bpf',
-    detail: 'Band-pass filter',
-    documentation: 'Apply a band-pass filter',
-    signatures: [{
-      label: 'bpf(frequency)',
-      parameters: [{ label: 'frequency', documentation: 'Center frequency in Hz' }],
-    }, {
-      label: 'bpf(frequency, resonance)',
-      parameters: [
-        { label: 'frequency', documentation: 'Center frequency in Hz' },
-        { label: 'resonance', documentation: 'Filter resonance (Q factor, affects bandwidth)' },
-      ],
-    }],
-  },
-  {
-    name: 'delay',
-    detail: 'Delay effect',
-    documentation: 'Add a delay/echo effect',
-    signatures: [{
-      label: 'delay(amount)',
-      parameters: [{ label: 'amount', documentation: 'Delay wet/dry mix (0-1)' }],
-    }, {
-      label: 'delay(amount, time, feedback)',
-      parameters: [
-        { label: 'amount', documentation: 'Wet/dry mix (0-1)' },
-        { label: 'time', documentation: 'Delay time in cycles (e.g., 0.5)' },
-        { label: 'feedback', documentation: 'Feedback amount (0-1)' },
-      ],
-    }],
-  },
-  {
-    name: 'room',
-    detail: 'Reverb',
-    documentation: 'Add reverb effect',
-    signatures: [{
-      label: 'room(size)',
-      parameters: [{ label: 'size', documentation: 'Room size / reverb amount (0-1)' }],
-    }],
-  },
-  {
-    name: 'crush',
-    detail: 'Bitcrush',
-    documentation: 'Apply bitcrusher effect',
-    signatures: [{
-      label: 'crush(bits)',
-      parameters: [{ label: 'bits', documentation: 'Bit depth (1-16, lower = more crushed)' }],
-    }],
-  },
-  {
-    name: 'coarse',
-    detail: 'Sample rate reduction',
-    documentation: 'Reduce sample rate for lo-fi effect',
-    signatures: [{
-      label: 'coarse(amount)',
-      parameters: [{ label: 'amount', documentation: 'Reduction factor (higher = more aliasing)' }],
-    }],
-  },
-  {
-    name: 'vowel',
-    detail: 'Vowel filter',
-    documentation: 'Apply vowel formant filter',
-    signatures: [{
-      label: 'vowel(pattern)',
-      parameters: [{ label: 'pattern', documentation: 'Pattern of vowels: a, e, i, o, u' }],
-    }],
-  },
-  {
-    name: 'euclid',
-    detail: 'Euclidean rhythm',
-    documentation: 'Apply Euclidean rhythm distribution',
-    signatures: [{
-      label: 'euclid(pulses, steps)',
-      parameters: [
-        { label: 'pulses', documentation: 'Number of pulses/hits' },
-        { label: 'steps', documentation: 'Total number of steps' },
-      ],
-    }, {
-      label: 'euclid(pulses, steps, rotation)',
-      parameters: [
-        { label: 'pulses', documentation: 'Number of pulses/hits' },
-        { label: 'steps', documentation: 'Total number of steps' },
-        { label: 'rotation', documentation: 'Rotation offset' },
-      ],
-    }],
-  },
-  {
-    name: 'every',
-    detail: 'Apply every N cycles',
-    documentation: 'Apply a function every N cycles',
-    signatures: [{
-      label: 'every(n, function)',
-      parameters: [
-        { label: 'n', documentation: 'Number of cycles' },
-        { label: 'function', documentation: 'Function to apply, e.g., rev or fast(2)' },
-      ],
-    }],
-  },
-  {
-    name: 'rev',
-    detail: 'Reverse',
-    documentation: 'Reverse the pattern',
-    signatures: [{
-      label: 'rev()',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'jux',
-    detail: 'Juxtapose',
-    documentation: 'Apply function to right channel only',
-    signatures: [{
-      label: 'jux(function)',
-      parameters: [{ label: 'function', documentation: 'Function to apply to right channel' }],
-    }],
-  },
-  {
-    name: 'stack',
-    detail: 'Stack patterns',
-    documentation: 'Play multiple patterns simultaneously',
-    signatures: [{
-      label: 'stack(pattern1, pattern2, ...)',
-      parameters: [{ label: 'patterns', documentation: 'Patterns to play in parallel' }],
-    }],
-  },
-  {
-    name: 'cat',
-    detail: 'Concatenate',
-    documentation: 'Play patterns in sequence',
-    signatures: [{
-      label: 'cat(pattern1, pattern2, ...)',
-      parameters: [{ label: 'patterns', documentation: 'Patterns to play in sequence' }],
-    }],
-  },
-  {
-    name: 'sometimes',
-    detail: 'Apply sometimes (50%)',
-    documentation: 'Apply function with 50% probability',
-    signatures: [{
-      label: 'sometimes(function)',
-      parameters: [{ label: 'function', documentation: 'Function to sometimes apply' }],
-    }],
-  },
-  {
-    name: 'often',
-    detail: 'Apply often (75%)',
-    documentation: 'Apply function with 75% probability',
-    signatures: [{
-      label: 'often(function)',
-      parameters: [{ label: 'function', documentation: 'Function to often apply' }],
-    }],
-  },
-  {
-    name: 'rarely',
-    detail: 'Apply rarely (25%)',
-    documentation: 'Apply function with 25% probability',
-    signatures: [{
-      label: 'rarely(function)',
-      parameters: [{ label: 'function', documentation: 'Function to rarely apply' }],
-    }],
-  },
-  {
-    name: 'almostAlways',
-    detail: 'Apply almost always (90%)',
-    documentation: 'Apply function with 90% probability',
-    signatures: [{
-      label: 'almostAlways(function)',
-      parameters: [{ label: 'function', documentation: 'Function to almost always apply' }],
-    }],
-  },
-  {
-    name: 'almostNever',
-    detail: 'Apply almost never (10%)',
-    documentation: 'Apply function with 10% probability',
-    signatures: [{
-      label: 'almostNever(function)',
-      parameters: [{ label: 'function', documentation: 'Function to almost never apply' }],
-    }],
-  },
-  {
-    name: 'bank',
-    detail: 'Sample bank',
-    documentation: 'Set the sample bank (drum machine)',
-    signatures: [{
-      label: 'bank(name)',
-      parameters: [{ label: 'name', documentation: 'Bank name, e.g., "RolandTR808" or "TR808"' }],
-    }],
-  },
-  {
-    name: 'scale',
-    detail: 'Musical scale',
-    documentation: 'Quantize notes to a scale',
-    signatures: [{
-      label: 'scale(name)',
-      parameters: [{ label: 'name', documentation: 'Scale name, e.g., "major", "minor", "dorian"' }],
-    }],
-  },
-  {
-    name: 'struct',
-    detail: 'Structure',
-    documentation: 'Apply rhythmic structure from another pattern',
-    signatures: [{
-      label: 'struct(pattern)',
-      parameters: [{ label: 'pattern', documentation: 'Boolean pattern for rhythm, e.g., "t f t f"' }],
-    }],
-  },
-  {
-    name: 'mask',
-    detail: 'Mask pattern',
-    documentation: 'Mask pattern with boolean pattern',
-    signatures: [{
-      label: 'mask(pattern)',
-      parameters: [{ label: 'pattern', documentation: 'Boolean pattern to mask with' }],
-    }],
-  },
-  {
-    name: 'clip',
-    detail: 'Clip duration',
-    documentation: 'Multiply event duration',
-    signatures: [{
-      label: 'clip(factor)',
-      parameters: [{ label: 'factor', documentation: 'Duration multiplier (1 = full, 0.5 = half)' }],
-    }],
-  },
-  {
-    name: 'attack',
-    detail: 'Attack time',
-    documentation: 'Set envelope attack time',
-    signatures: [{
-      label: 'attack(time)',
-      parameters: [{ label: 'time', documentation: 'Attack time in seconds' }],
-    }],
-  },
-  {
-    name: 'decay',
-    detail: 'Decay time',
-    documentation: 'Set envelope decay time',
-    signatures: [{
-      label: 'decay(time)',
-      parameters: [{ label: 'time', documentation: 'Decay time in seconds' }],
-    }],
-  },
-  {
-    name: 'sustain',
-    detail: 'Sustain level',
-    documentation: 'Set envelope sustain level',
-    signatures: [{
-      label: 'sustain(level)',
-      parameters: [{ label: 'level', documentation: 'Sustain level (0-1)' }],
-    }],
-  },
-  {
-    name: 'release',
-    detail: 'Release time',
-    documentation: 'Set envelope release time',
-    signatures: [{
-      label: 'release(time)',
-      parameters: [{ label: 'time', documentation: 'Release time in seconds' }],
-    }],
-  },
-  {
-    name: 'begin',
-    detail: 'Sample start',
-    documentation: 'Set sample playback start position',
-    signatures: [{
-      label: 'begin(position)',
-      parameters: [{ label: 'position', documentation: 'Start position (0-1, 0 = beginning)' }],
-    }],
-  },
-  {
-    name: 'end',
-    detail: 'Sample end',
-    documentation: 'Set sample playback end position',
-    signatures: [{
-      label: 'end(position)',
-      parameters: [{ label: 'position', documentation: 'End position (0-1, 1 = end)' }],
-    }],
-  },
-  {
-    name: 'cut',
-    detail: 'Cut group',
-    documentation: 'Stop other sounds in same cut group (like hi-hat choke)',
-    signatures: [{
-      label: 'cut(group)',
-      parameters: [{ label: 'group', documentation: 'Cut group number' }],
-    }],
-  },
-  {
-    name: 'chop',
-    detail: 'Chop sample',
-    documentation: 'Chop sample into N parts for granular effects',
-    signatures: [{
-      label: 'chop(parts)',
-      parameters: [{ label: 'parts', documentation: 'Number of parts to chop into' }],
-    }],
-  },
-  {
-    name: 'slice',
-    detail: 'Slice sample',
-    documentation: 'Slice sample and select which slice to play',
-    signatures: [{
-      label: 'slice(total, which)',
-      parameters: [
-        { label: 'total', documentation: 'Total number of slices' },
-        { label: 'which', documentation: 'Pattern of slice indices to play' },
-      ],
-    }],
-  },
-  {
-    name: 'loopAt',
-    detail: 'Loop at cycles',
-    documentation: 'Adjust sample speed to loop over N cycles',
-    signatures: [{
-      label: 'loopAt(cycles)',
-      parameters: [{ label: 'cycles', documentation: 'Number of cycles for the loop' }],
-    }],
-  },
-  {
-    name: 'fit',
-    detail: 'Fit to cycle',
-    documentation: 'Fit sample to event duration',
-    signatures: [{
-      label: 'fit()',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'striate',
-    detail: 'Striate',
-    documentation: 'Granular time-stretch effect',
-    signatures: [{
-      label: 'striate(parts)',
-      parameters: [{ label: 'parts', documentation: 'Number of parts to striate into' }],
-    }],
-  },
-  {
-    name: 'orbit',
-    detail: 'Effect bus',
-    documentation: 'Route to effect bus (for shared effects)',
-    signatures: [{
-      label: 'orbit(bus)',
-      parameters: [{ label: 'bus', documentation: 'Effect bus number (0-11)' }],
-    }],
-  },
-  // REPL control functions
-  {
-    name: 'hush',
-    detail: 'Stop all sounds',
-    documentation: 'Emergency stop - silences all sounds immediately (panic button)',
-    signatures: [{
-      label: 'hush()',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'setcps',
-    detail: 'Set tempo',
-    documentation: 'Set the tempo in cycles per second. 1 = 1 cycle per second, 0.5 = 1 cycle every 2 seconds',
-    signatures: [{
-      label: 'setcps(cps)',
-      parameters: [{ label: 'cps', documentation: 'Cycles per second (e.g., 0.5 for half speed, 2 for double speed)' }],
-    }],
-  },
-  // Time modifiers
-  {
-    name: 'early',
-    detail: 'Shift earlier',
-    documentation: 'Shift pattern earlier in time by the given amount',
-    signatures: [{
-      label: 'early(amount)',
-      parameters: [{ label: 'amount', documentation: 'Amount to shift earlier (in cycles)' }],
-    }],
-  },
-  {
-    name: 'late',
-    detail: 'Shift later',
-    documentation: 'Shift pattern later in time by the given amount',
-    signatures: [{
-      label: 'late(amount)',
-      parameters: [{ label: 'amount', documentation: 'Amount to shift later (in cycles)' }],
-    }],
-  },
-  {
-    name: 'ply',
-    detail: 'Multiply events',
-    documentation: 'Multiply each event in the pattern, subdividing it',
-    signatures: [{
-      label: 'ply(factor)',
-      parameters: [{ label: 'factor', documentation: 'Number of times to subdivide each event' }],
-    }],
-  },
-  {
-    name: 'segment',
-    detail: 'Segment pattern',
-    documentation: 'Sample the pattern at a fixed number of segments per cycle',
-    signatures: [{
-      label: 'segment(n)',
-      parameters: [{ label: 'n', documentation: 'Number of segments per cycle' }],
-    }],
-  },
-  {
-    name: 'iter',
-    detail: 'Iterate pattern',
-    documentation: 'Shift the pattern by 1/n each cycle, cycling through variations',
-    signatures: [{
-      label: 'iter(n)',
-      parameters: [{ label: 'n', documentation: 'Number of iterations before repeating' }],
-    }],
-  },
-  {
-    name: 'iterBack',
-    detail: 'Iterate backwards',
-    documentation: 'Like iter but shifts in the opposite direction',
-    signatures: [{
-      label: 'iterBack(n)',
-      parameters: [{ label: 'n', documentation: 'Number of iterations before repeating' }],
-    }],
-  },
-  {
-    name: 'palindrome',
-    detail: 'Palindrome',
-    documentation: 'Play pattern forwards then backwards',
-    signatures: [{
-      label: 'palindrome()',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'compress',
-    detail: 'Compress time',
-    documentation: 'Compress pattern into a portion of the cycle',
-    signatures: [{
-      label: 'compress(start, end)',
-      parameters: [
-        { label: 'start', documentation: 'Start position (0-1)' },
-        { label: 'end', documentation: 'End position (0-1)' },
-      ],
-    }],
-  },
-  {
-    name: 'zoom',
-    detail: 'Zoom into pattern',
-    documentation: 'Zoom into a portion of the pattern',
-    signatures: [{
-      label: 'zoom(start, end)',
-      parameters: [
-        { label: 'start', documentation: 'Start position (0-1)' },
-        { label: 'end', documentation: 'End position (0-1)' },
-      ],
-    }],
-  },
-  {
-    name: 'linger',
-    detail: 'Linger on portion',
-    documentation: 'Only play the first portion of the pattern, looping it',
-    signatures: [{
-      label: 'linger(fraction)',
-      parameters: [{ label: 'fraction', documentation: 'Fraction of pattern to loop (e.g., 0.25 = first quarter)' }],
-    }],
-  },
-  {
-    name: 'fastGap',
-    detail: 'Fast with gap',
-    documentation: 'Speed up pattern but leave a gap, maintaining cycle length',
-    signatures: [{
-      label: 'fastGap(factor)',
-      parameters: [{ label: 'factor', documentation: 'Speed factor' }],
-    }],
-  },
-  {
-    name: 'inside',
-    detail: 'Apply inside',
-    documentation: 'Apply function inside a time span (speed up, apply, slow down)',
-    signatures: [{
-      label: 'inside(factor, function)',
-      parameters: [
-        { label: 'factor', documentation: 'Time compression factor' },
-        { label: 'function', documentation: 'Function to apply' },
-      ],
-    }],
-  },
-  {
-    name: 'outside',
-    detail: 'Apply outside',
-    documentation: 'Apply function outside a time span (slow down, apply, speed up)',
-    signatures: [{
-      label: 'outside(factor, function)',
-      parameters: [
-        { label: 'factor', documentation: 'Time expansion factor' },
-        { label: 'function', documentation: 'Function to apply' },
-      ],
-    }],
-  },
-  {
-    name: 'cpm',
-    detail: 'Cycles per minute',
-    documentation: 'Set pattern speed in cycles per minute',
-    signatures: [{
-      label: 'cpm(n)',
-      parameters: [{ label: 'n', documentation: 'Cycles per minute' }],
-    }],
-  },
-  {
-    name: 'swing',
-    detail: 'Swing feel',
-    documentation: 'Apply swing timing to pattern',
-    signatures: [{
-      label: 'swing(amount)',
-      parameters: [{ label: 'amount', documentation: 'Swing amount (0-1)' }],
-    }],
-  },
-  {
-    name: 'swingBy',
-    detail: 'Swing by division',
-    documentation: 'Apply swing at specific subdivision',
-    signatures: [{
-      label: 'swingBy(amount, division)',
-      parameters: [
-        { label: 'amount', documentation: 'Swing amount' },
-        { label: 'division', documentation: 'Subdivision to swing' },
-      ],
-    }],
-  },
-  {
-    name: 'hurry',
-    detail: 'Hurry up',
-    documentation: 'Speed up pattern and also speed up sample playback',
-    signatures: [{
-      label: 'hurry(factor)',
-      parameters: [{ label: 'factor', documentation: 'Speed factor (affects both pattern and samples)' }],
-    }],
-  },
-  // Signals (continuous patterns)
-  {
-    name: 'saw',
-    detail: 'Sawtooth signal',
-    documentation: 'Continuous sawtooth wave pattern (0 to 1 over each cycle)',
-    signatures: [{
-      label: 'saw',
-      documentation: 'Use with .range() to set output range: saw.range(0, 100)',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'sine',
-    detail: 'Sine signal',
-    documentation: 'Continuous sine wave pattern (oscillates 0 to 1)',
-    signatures: [{
-      label: 'sine',
-      documentation: 'Use with .range() to set output range: sine.range(200, 2000)',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'cosine',
-    detail: 'Cosine signal',
-    documentation: 'Continuous cosine wave pattern (like sine but phase-shifted)',
-    signatures: [{
-      label: 'cosine',
-      documentation: 'Use with .range() to set output range: cosine.range(0, 1)',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'tri',
-    detail: 'Triangle signal',
-    documentation: 'Continuous triangle wave pattern',
-    signatures: [{
-      label: 'tri',
-      documentation: 'Use with .range() to set output range: tri.range(0, 1)',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'square',
-    detail: 'Square signal',
-    documentation: 'Continuous square wave pattern (alternates between 0 and 1)',
-    signatures: [{
-      label: 'square',
-      documentation: 'Use with .range() to set output range: square.range(0, 1)',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'rand',
-    detail: 'Random signal',
-    documentation: 'Continuous random pattern (new random value each cycle)',
-    signatures: [{
-      label: 'rand',
-      documentation: 'Use with .range() to set output range: rand.range(0, 100)',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'perlin',
-    detail: 'Perlin noise',
-    documentation: 'Smooth continuous random pattern using Perlin noise',
-    signatures: [{
-      label: 'perlin',
-      documentation: 'Use with .range() to set output range: perlin.range(0, 1)',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'irand',
-    detail: 'Integer random',
-    documentation: 'Random integer pattern',
-    signatures: [{
-      label: 'irand(max)',
-      parameters: [{ label: 'max', documentation: 'Maximum value (exclusive)' }],
-    }],
-  },
-  {
-    name: 'brand',
-    detail: 'Binary random',
-    documentation: 'Random binary pattern (0 or 1)',
-    signatures: [{
-      label: 'brand',
-      parameters: [],
-    }],
-  },
-  // Random modifiers
-  {
-    name: 'choose',
-    detail: 'Choose random',
-    documentation: 'Randomly choose from a list of values each cycle',
-    signatures: [{
-      label: 'choose(values...)',
-      parameters: [{ label: 'values', documentation: 'Values to choose from' }],
-    }, {
-      label: 'choose([values])',
-      parameters: [{ label: 'values', documentation: 'Array of values to choose from' }],
-    }],
-  },
-  {
-    name: 'wchoose',
-    detail: 'Weighted choose',
-    documentation: 'Randomly choose with weights',
-    signatures: [{
-      label: 'wchoose([[value, weight], ...])',
-      parameters: [{ label: 'pairs', documentation: 'Array of [value, weight] pairs' }],
-    }],
-  },
-  {
-    name: 'chooseCycles',
-    detail: 'Choose for N cycles',
-    documentation: 'Choose a random value and keep it for N cycles',
-    signatures: [{
-      label: 'chooseCycles(n, values...)',
-      parameters: [
-        { label: 'n', documentation: 'Number of cycles to keep the choice' },
-        { label: 'values', documentation: 'Values to choose from' },
-      ],
-    }],
-  },
-  {
-    name: 'degradeBy',
-    detail: 'Degrade by amount',
-    documentation: 'Randomly remove events with given probability',
-    signatures: [{
-      label: 'degradeBy(amount)',
-      parameters: [{ label: 'amount', documentation: 'Probability of removing each event (0-1)' }],
-    }],
-  },
-  {
-    name: 'degrade',
-    detail: 'Degrade 50%',
-    documentation: 'Randomly remove 50% of events',
-    signatures: [{
-      label: 'degrade()',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'undegradeBy',
-    detail: 'Undegrade by amount',
-    documentation: 'Randomly keep events with given probability (opposite of degradeBy)',
-    signatures: [{
-      label: 'undegradeBy(amount)',
-      parameters: [{ label: 'amount', documentation: 'Probability of keeping each event (0-1)' }],
-    }],
-  },
-  {
-    name: 'sometimesBy',
-    detail: 'Sometimes by amount',
-    documentation: 'Apply function with given probability',
-    signatures: [{
-      label: 'sometimesBy(amount, function)',
-      parameters: [
-        { label: 'amount', documentation: 'Probability (0-1)' },
-        { label: 'function', documentation: 'Function to sometimes apply' },
-      ],
-    }],
-  },
-  {
-    name: 'someCycles',
-    detail: 'Some cycles',
-    documentation: 'Apply function on some cycles (50% probability per cycle)',
-    signatures: [{
-      label: 'someCycles(function)',
-      parameters: [{ label: 'function', documentation: 'Function to apply on some cycles' }],
-    }],
-  },
-  {
-    name: 'someCyclesBy',
-    detail: 'Some cycles by amount',
-    documentation: 'Apply function on some cycles with given probability',
-    signatures: [{
-      label: 'someCyclesBy(amount, function)',
-      parameters: [
-        { label: 'amount', documentation: 'Probability per cycle (0-1)' },
-        { label: 'function', documentation: 'Function to apply' },
-      ],
-    }],
-  },
-  {
-    name: 'never',
-    detail: 'Never apply',
-    documentation: 'Never apply the function (0% probability)',
-    signatures: [{
-      label: 'never(function)',
-      parameters: [{ label: 'function', documentation: 'Function to never apply' }],
-    }],
-  },
-  {
-    name: 'always',
-    detail: 'Always apply',
-    documentation: 'Always apply the function (100% probability)',
-    signatures: [{
-      label: 'always(function)',
-      parameters: [{ label: 'function', documentation: 'Function to always apply' }],
-    }],
-  },
-  // Pattern factories
-  {
-    name: 'seq',
-    detail: 'Sequence',
-    documentation: 'Alias for cat - play patterns in sequence',
-    signatures: [{
-      label: 'seq(pattern1, pattern2, ...)',
-      parameters: [{ label: 'patterns', documentation: 'Patterns to play in sequence' }],
-    }],
-  },
-  {
-    name: 'silence',
-    detail: 'Silence',
-    documentation: 'A silent pattern - produces no events',
-    signatures: [{
-      label: 'silence',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'run',
-    detail: 'Run sequence',
-    documentation: 'Create a pattern of numbers from 0 to n-1',
-    signatures: [{
-      label: 'run(n)',
-      parameters: [{ label: 'n', documentation: 'Number of steps (0 to n-1)' }],
-    }],
-  },
-  {
-    name: 'arrange',
-    detail: 'Arrange patterns',
-    documentation: 'Arrange patterns over multiple cycles',
-    signatures: [{
-      label: 'arrange([cycles, pattern], ...)',
-      parameters: [{ label: 'pairs', documentation: 'Array of [numCycles, pattern] pairs' }],
-    }],
-  },
-  {
-    name: 'polymeter',
-    detail: 'Polymeter',
-    documentation: 'Play patterns with different lengths simultaneously',
-    signatures: [{
-      label: 'polymeter(pattern1, pattern2, ...)',
-      parameters: [{ label: 'patterns', documentation: 'Patterns of different lengths' }],
-    }],
-  },
-  {
-    name: 'polymeterSteps',
-    detail: 'Polymeter with steps',
-    documentation: 'Polymeter with specified step counts',
-    signatures: [{
-      label: 'polymeterSteps(steps, pattern1, pattern2, ...)',
-      parameters: [
-        { label: 'steps', documentation: 'Number of steps per cycle' },
-        { label: 'patterns', documentation: 'Patterns to polymetrically combine' },
-      ],
-    }],
-  },
-  {
-    name: 'binary',
-    detail: 'Binary pattern',
-    documentation: 'Create pattern from binary number',
-    signatures: [{
-      label: 'binary(n)',
-      parameters: [{ label: 'n', documentation: 'Number to convert to binary pattern' }],
-    }],
-  },
-  {
-    name: 'binaryN',
-    detail: 'Binary with length',
-    documentation: 'Create pattern from binary number with specified length',
-    signatures: [{
-      label: 'binaryN(bits, n)',
-      parameters: [
-        { label: 'bits', documentation: 'Number of bits (pattern length)' },
-        { label: 'n', documentation: 'Number to convert' },
-      ],
-    }],
-  },
-  // Tonal functions
-  {
-    name: 'transpose',
-    detail: 'Transpose',
-    documentation: 'Transpose notes by semitones',
-    signatures: [{
-      label: 'transpose(semitones)',
-      parameters: [{ label: 'semitones', documentation: 'Number of semitones to transpose' }],
-    }],
-  },
-  {
-    name: 'scaleTranspose',
-    detail: 'Scale transpose',
-    documentation: 'Transpose within the current scale',
-    signatures: [{
-      label: 'scaleTranspose(steps)',
-      parameters: [{ label: 'steps', documentation: 'Number of scale steps to transpose' }],
-    }],
-  },
-  {
-    name: 'rootNotes',
-    detail: 'Root notes',
-    documentation: 'Get root notes of chords',
-    signatures: [{
-      label: 'rootNotes(pattern)',
-      parameters: [{ label: 'pattern', documentation: 'Pattern of chord names' }],
-    }],
-  },
-  {
-    name: 'chord',
-    detail: 'Chord',
-    documentation: 'Play a chord by name',
-    signatures: [{
-      label: 'chord(pattern)',
-      parameters: [{ label: 'pattern', documentation: 'Pattern of chord names, e.g., "C Am F G" or "Cm7 Fmaj7"' }],
-    }],
-  },
-  {
-    name: 'mode',
-    detail: 'Scale mode',
-    documentation: 'Set the scale mode for note interpretation',
-    signatures: [{
-      label: 'mode(pattern)',
-      parameters: [{ label: 'pattern', documentation: 'Pattern of mode names, e.g., "major minor dorian"' }],
-    }],
-  },
-  {
-    name: 'voicing',
-    detail: 'Chord voicing',
-    documentation: 'Set chord voicing style',
-    signatures: [{
-      label: 'voicing(style)',
-      parameters: [{ label: 'style', documentation: 'Voicing style, e.g., "default", "lefthand", "open", "drop2"' }],
-    }],
-  },
-  {
-    name: 'voicings',
-    detail: 'Chord voicings',
-    documentation: 'Define custom chord voicings',
-    signatures: [{
-      label: 'voicings(dictionary)',
-      parameters: [{ label: 'dictionary', documentation: 'Voicing dictionary object' }],
-    }],
-  },
-  {
-    name: 'anchor',
-    detail: 'Voicing anchor',
-    documentation: 'Set the anchor note for chord voicings',
-    signatures: [{
-      label: 'anchor(note)',
-      parameters: [{ label: 'note', documentation: 'Anchor note, e.g., "c3"' }],
-    }],
-  },
-  {
-    name: 'octave',
-    detail: 'Octave',
-    documentation: 'Set the octave for notes',
-    signatures: [{
-      label: 'octave(n)',
-      parameters: [{ label: 'n', documentation: 'Octave number (e.g., 3, 4, 5)' }],
-    }],
-  },
-  // More effects
-  {
-    name: 'distort',
-    detail: 'Distortion',
-    documentation: 'Apply distortion effect',
-    signatures: [{
-      label: 'distort(amount)',
-      parameters: [{ label: 'amount', documentation: 'Distortion amount (0-1)' }],
-    }],
-  },
-  {
-    name: 'shape',
-    detail: 'Wave shaping',
-    documentation: 'Apply wave shaping distortion',
-    signatures: [{
-      label: 'shape(amount)',
-      parameters: [{ label: 'amount', documentation: 'Shaping amount (0-1)' }],
-    }],
-  },
-  {
-    name: 'tremolo',
-    detail: 'Tremolo',
-    documentation: 'Apply tremolo (amplitude modulation) effect',
-    signatures: [{
-      label: 'tremolo(depth, rate)',
-      parameters: [
-        { label: 'depth', documentation: 'Tremolo depth (0-1)' },
-        { label: 'rate', documentation: 'Tremolo rate in Hz' },
-      ],
-    }],
-  },
-  {
-    name: 'phaser',
-    detail: 'Phaser',
-    documentation: 'Apply phaser effect',
-    signatures: [{
-      label: 'phaser(depth, rate)',
-      parameters: [
-        { label: 'depth', documentation: 'Phaser depth (0-1)' },
-        { label: 'rate', documentation: 'Phaser rate' },
-      ],
-    }],
-  },
-  {
-    name: 'squiz',
-    detail: 'Squiz',
-    documentation: 'Apply squiz effect (pitch-based distortion)',
-    signatures: [{
-      label: 'squiz(amount)',
-      parameters: [{ label: 'amount', documentation: 'Squiz amount' }],
-    }],
-  },
-  {
-    name: 'waveloss',
-    detail: 'Wave loss',
-    documentation: 'Drop samples for lo-fi effect',
-    signatures: [{
-      label: 'waveloss(amount)',
-      parameters: [{ label: 'amount', documentation: 'Amount of samples to drop' }],
-    }],
-  },
-  {
-    name: 'delaytime',
-    detail: 'Delay time',
-    documentation: 'Set delay time',
-    signatures: [{
-      label: 'delaytime(time)',
-      parameters: [{ label: 'time', documentation: 'Delay time in cycles' }],
-    }],
-  },
-  {
-    name: 'delayfeedback',
-    detail: 'Delay feedback',
-    documentation: 'Set delay feedback amount',
-    signatures: [{
-      label: 'delayfeedback(amount)',
-      parameters: [{ label: 'amount', documentation: 'Feedback amount (0-1)' }],
-    }],
-  },
-  {
-    name: 'size',
-    detail: 'Reverb size',
-    documentation: 'Set reverb room size',
-    signatures: [{
-      label: 'size(amount)',
-      parameters: [{ label: 'amount', documentation: 'Room size (0-1)' }],
-    }],
-  },
-  {
-    name: 'velocity',
-    detail: 'Velocity',
-    documentation: 'Set note velocity (for MIDI/instruments)',
-    signatures: [{
-      label: 'velocity(amount)',
-      parameters: [{ label: 'amount', documentation: 'Velocity (0-1)' }],
-    }],
-  },
-  {
-    name: 'amp',
-    detail: 'Amplitude',
-    documentation: 'Set amplitude (alias for gain)',
-    signatures: [{
-      label: 'amp(amount)',
-      parameters: [{ label: 'amount', documentation: 'Amplitude level' }],
-    }],
-  },
-  // More utility functions
-  {
-    name: 'range',
-    detail: 'Range',
-    documentation: 'Map pattern values to a range',
-    signatures: [{
-      label: 'range(min, max)',
-      parameters: [
-        { label: 'min', documentation: 'Minimum output value' },
-        { label: 'max', documentation: 'Maximum output value' },
-      ],
-    }],
-  },
-  {
-    name: 'cps',
-    detail: 'Get/set CPS',
-    documentation: 'Get or set cycles per second as a pattern',
-    signatures: [{
-      label: 'cps(value)',
-      parameters: [{ label: 'value', documentation: 'Cycles per second' }],
-    }],
-  },
-  {
-    name: 'off',
-    detail: 'Off',
-    documentation: 'Layer a time-shifted and modified copy of the pattern',
-    signatures: [{
-      label: 'off(amount, function)',
-      parameters: [
-        { label: 'amount', documentation: 'Time offset' },
-        { label: 'function', documentation: 'Function to apply to offset copy' },
-      ],
-    }],
-  },
-  {
-    name: 'layer',
-    detail: 'Layer',
-    documentation: 'Layer multiple functions over the pattern',
-    signatures: [{
-      label: 'layer(function1, function2, ...)',
-      parameters: [{ label: 'functions', documentation: 'Functions to layer' }],
-    }],
-  },
-  {
-    name: 'superimpose',
-    detail: 'Superimpose',
-    documentation: 'Play pattern with a modified copy on top',
-    signatures: [{
-      label: 'superimpose(function)',
-      parameters: [{ label: 'function', documentation: 'Function to apply to superimposed copy' }],
-    }],
-  },
-  {
-    name: 'stut',
-    detail: 'Stutter',
-    documentation: 'Stutter effect - repeat with decay',
-    signatures: [{
-      label: 'stut(times, decay, time)',
-      parameters: [
-        { label: 'times', documentation: 'Number of repeats' },
-        { label: 'decay', documentation: 'Volume decay per repeat' },
-        { label: 'time', documentation: 'Time between repeats' },
-      ],
-    }],
-  },
-  {
-    name: 'echo',
-    detail: 'Echo',
-    documentation: 'Echo effect - repeat with delay',
-    signatures: [{
-      label: 'echo(times, time, feedback)',
-      parameters: [
-        { label: 'times', documentation: 'Number of echoes' },
-        { label: 'time', documentation: 'Delay time' },
-        { label: 'feedback', documentation: 'Feedback amount' },
-      ],
-    }],
-  },
-  {
-    name: 'when',
-    detail: 'When',
-    documentation: 'Apply function when condition is true',
-    signatures: [{
-      label: 'when(condition, function)',
-      parameters: [
-        { label: 'condition', documentation: 'Boolean pattern or function' },
-        { label: 'function', documentation: 'Function to apply when true' },
-      ],
-    }],
-  },
-  {
-    name: 'while',
-    detail: 'While',
-    documentation: 'Play pattern while condition is true, otherwise silence',
-    signatures: [{
-      label: 'while(condition)',
-      parameters: [{ label: 'condition', documentation: 'Boolean pattern' }],
-    }],
-  },
-  {
-    name: 'firstOf',
-    detail: 'First of N',
-    documentation: 'Apply function only on the first of every N cycles',
-    signatures: [{
-      label: 'firstOf(n, function)',
-      parameters: [
-        { label: 'n', documentation: 'Cycle interval' },
-        { label: 'function', documentation: 'Function to apply on first cycle' },
-      ],
-    }],
-  },
-  {
-    name: 'lastOf',
-    detail: 'Last of N',
-    documentation: 'Apply function only on the last of every N cycles',
-    signatures: [{
-      label: 'lastOf(n, function)',
-      parameters: [
-        { label: 'n', documentation: 'Cycle interval' },
-        { label: 'function', documentation: 'Function to apply on last cycle' },
-      ],
-    }],
-  },
-  {
-    name: 'chunk',
-    detail: 'Chunk',
-    documentation: 'Divide pattern into chunks and apply function to one chunk per cycle',
-    signatures: [{
-      label: 'chunk(n, function)',
-      parameters: [
-        { label: 'n', documentation: 'Number of chunks' },
-        { label: 'function', documentation: 'Function to apply to current chunk' },
-      ],
-    }],
-  },
-  {
-    name: 'arp',
-    detail: 'Arpeggio',
-    documentation: 'Arpeggiate chords',
-    signatures: [{
-      label: 'arp(pattern)',
-      parameters: [{ label: 'pattern', documentation: 'Arpeggio pattern (e.g., "up", "down", "updown")' }],
-    }],
-  },
-  // Pattern combinators
-  {
-    name: 'fastcat',
-    detail: 'Fast concatenate',
-    documentation: 'Concatenate patterns, each taking one cycle (alias for cat)',
-    signatures: [{
-      label: 'fastcat(pattern1, pattern2, ...)',
-      parameters: [{ label: 'patterns', documentation: 'Patterns to concatenate' }],
-    }],
-  },
-  {
-    name: 'slowcat',
-    detail: 'Slow concatenate',
-    documentation: 'Concatenate patterns, each pattern plays for one cycle in sequence',
-    signatures: [{
-      label: 'slowcat(pattern1, pattern2, ...)',
-      parameters: [{ label: 'patterns', documentation: 'Patterns to concatenate' }],
-    }],
-  },
-  {
-    name: 'randcat',
-    detail: 'Random concatenate',
-    documentation: 'Randomly choose between patterns each cycle',
-    signatures: [{
-      label: 'randcat(pattern1, pattern2, ...)',
-      parameters: [{ label: 'patterns', documentation: 'Patterns to randomly choose from' }],
-    }],
-  },
-  {
-    name: 'pure',
-    detail: 'Pure value',
-    documentation: 'Create a pattern from a single value',
-    signatures: [{
-      label: 'pure(value)',
-      parameters: [{ label: 'value', documentation: 'Value to create pattern from' }],
-    }],
-  },
-  {
-    name: 'reify',
-    detail: 'Reify pattern',
-    documentation: 'Convert a value to a pattern if it is not already',
-    signatures: [{
-      label: 'reify(value)',
-      parameters: [{ label: 'value', documentation: 'Value or pattern' }],
-    }],
-  },
-  // Math operations
-  {
-    name: 'add',
-    detail: 'Add',
-    documentation: 'Add a value or pattern to the current pattern',
-    signatures: [{
-      label: 'add(value)',
-      parameters: [{ label: 'value', documentation: 'Value to add' }],
-    }],
-  },
-  {
-    name: 'sub',
-    detail: 'Subtract',
-    documentation: 'Subtract a value or pattern from the current pattern',
-    signatures: [{
-      label: 'sub(value)',
-      parameters: [{ label: 'value', documentation: 'Value to subtract' }],
-    }],
-  },
-  {
-    name: 'mul',
-    detail: 'Multiply',
-    documentation: 'Multiply the current pattern by a value or pattern',
-    signatures: [{
-      label: 'mul(value)',
-      parameters: [{ label: 'value', documentation: 'Value to multiply by' }],
-    }],
-  },
-  {
-    name: 'div',
-    detail: 'Divide',
-    documentation: 'Divide the current pattern by a value or pattern',
-    signatures: [{
-      label: 'div(value)',
-      parameters: [{ label: 'value', documentation: 'Value to divide by' }],
-    }],
-  },
-  // Juxtapose variations
-  {
-    name: 'juxBy',
-    detail: 'Juxtapose by amount',
-    documentation: 'Apply function to right channel with adjustable stereo width',
-    signatures: [{
-      label: 'juxBy(amount, function)',
-      parameters: [
-        { label: 'amount', documentation: 'Stereo width (0-1, 0.5 = half width)' },
-        { label: 'function', documentation: 'Function to apply to right channel' },
-      ],
-    }],
-  },
-  // Envelope shortcuts
-  {
-    name: 'ad',
-    detail: 'Attack-Decay envelope',
-    documentation: 'Set attack and decay times',
-    signatures: [{
-      label: 'ad(attack, decay)',
-      parameters: [
-        { label: 'attack', documentation: 'Attack time in seconds' },
-        { label: 'decay', documentation: 'Decay time in seconds' },
-      ],
-    }],
-  },
-  {
-    name: 'adsr',
-    detail: 'ADSR envelope',
-    documentation: 'Set full ADSR envelope',
-    signatures: [{
-      label: 'adsr(attack, decay, sustain, release)',
-      parameters: [
-        { label: 'attack', documentation: 'Attack time' },
-        { label: 'decay', documentation: 'Decay time' },
-        { label: 'sustain', documentation: 'Sustain level (0-1)' },
-        { label: 'release', documentation: 'Release time' },
-      ],
-    }],
-  },
-  {
-    name: 'ar',
-    detail: 'Attack-Release envelope',
-    documentation: 'Set attack and release times (no sustain)',
-    signatures: [{
-      label: 'ar(attack, release)',
-      parameters: [
-        { label: 'attack', documentation: 'Attack time in seconds' },
-        { label: 'release', documentation: 'Release time in seconds' },
-      ],
-    }],
-  },
-  // Duration and timing
-  {
-    name: 'dur',
-    detail: 'Duration',
-    documentation: 'Set event duration in cycles',
-    signatures: [{
-      label: 'dur(cycles)',
-      parameters: [{ label: 'cycles', documentation: 'Duration in cycles' }],
-    }],
-  },
-  {
-    name: 'legato',
-    detail: 'Legato',
-    documentation: 'Set note legato (overlap/gap between notes)',
-    signatures: [{
-      label: 'legato(value)',
-      parameters: [{ label: 'value', documentation: 'Legato value (1 = full duration, <1 = gap, >1 = overlap)' }],
-    }],
-  },
-  {
-    name: 'nudge',
-    detail: 'Nudge timing',
-    documentation: 'Shift events in time by a small amount',
-    signatures: [{
-      label: 'nudge(seconds)',
-      parameters: [{ label: 'seconds', documentation: 'Time offset in seconds' }],
-    }],
-  },
-  {
-    name: 'unit',
-    detail: 'Time unit',
-    documentation: 'Set the time unit for speed calculations',
-    signatures: [{
-      label: 'unit(type)',
-      parameters: [{ label: 'type', documentation: 'Unit type: "r" (rate), "c" (cycle), "s" (seconds)' }],
-    }],
-  },
-  // Gate and hold
-  {
-    name: 'gate',
-    detail: 'Gate',
-    documentation: 'Set gate time (note on duration)',
-    signatures: [{
-      label: 'gate(value)',
-      parameters: [{ label: 'value', documentation: 'Gate time (0-1)' }],
-    }],
-  },
-  {
-    name: 'hold',
-    detail: 'Hold',
-    documentation: 'Hold/sustain the sound',
-    signatures: [{
-      label: 'hold(value)',
-      parameters: [{ label: 'value', documentation: 'Hold time' }],
-    }],
-  },
-  // Synth parameters
-  {
-    name: 'freq',
-    detail: 'Frequency',
-    documentation: 'Set frequency in Hz directly',
-    signatures: [{
-      label: 'freq(hz)',
-      parameters: [{ label: 'hz', documentation: 'Frequency in Hz' }],
-    }],
-  },
-  {
-    name: 'noise',
-    detail: 'Noise',
-    documentation: 'Add noise to the sound',
-    signatures: [{
-      label: 'noise(amount)',
-      parameters: [{ label: 'amount', documentation: 'Noise amount (0-1)' }],
-    }],
-  },
-  {
-    name: 'detune',
-    detail: 'Detune',
-    documentation: 'Detune the sound in semitones',
-    signatures: [{
-      label: 'detune(semitones)',
-      parameters: [{ label: 'semitones', documentation: 'Detune amount in semitones' }],
-    }],
-  },
-  {
-    name: 'unison',
-    detail: 'Unison',
-    documentation: 'Add unison voices for thicker sound',
-    signatures: [{
-      label: 'unison(voices)',
-      parameters: [{ label: 'voices', documentation: 'Number of unison voices' }],
-    }],
-  },
-  // FM synthesis
-  {
-    name: 'fm',
-    detail: 'FM amount',
-    documentation: 'Set FM synthesis modulation amount',
-    signatures: [{
-      label: 'fm(amount)',
-      parameters: [{ label: 'amount', documentation: 'FM modulation amount' }],
-    }],
-  },
-  {
-    name: 'fmi',
-    detail: 'FM index',
-    documentation: 'Set FM modulation index',
-    signatures: [{
-      label: 'fmi(index)',
-      parameters: [{ label: 'index', documentation: 'FM modulation index' }],
-    }],
-  },
-  {
-    name: 'fmh',
-    detail: 'FM harmonic',
-    documentation: 'Set FM modulator harmonic ratio',
-    signatures: [{
-      label: 'fmh(ratio)',
-      parameters: [{ label: 'ratio', documentation: 'Harmonic ratio of modulator' }],
-    }],
-  },
-  // Vibrato
-  {
-    name: 'vib',
-    detail: 'Vibrato',
-    documentation: 'Add vibrato effect',
-    signatures: [{
-      label: 'vib(depth)',
-      parameters: [{ label: 'depth', documentation: 'Vibrato depth' }],
-    }],
-  },
-  {
-    name: 'vibrato',
-    detail: 'Vibrato (full)',
-    documentation: 'Add vibrato with rate control',
-    signatures: [{
-      label: 'vibrato(depth, rate)',
-      parameters: [
-        { label: 'depth', documentation: 'Vibrato depth' },
-        { label: 'rate', documentation: 'Vibrato rate in Hz' },
-      ],
-    }],
-  },
-  // Leslie effect
-  {
-    name: 'leslie',
-    detail: 'Leslie speaker',
-    documentation: 'Apply Leslie speaker effect (rotating speaker)',
-    signatures: [{
-      label: 'leslie(amount)',
-      parameters: [{ label: 'amount', documentation: 'Leslie effect amount' }],
-    }],
-  },
-  // Wavetable
-  {
-    name: 'wt',
-    detail: 'Wavetable',
-    documentation: 'Use wavetable synthesis',
-    signatures: [{
-      label: 'wt(table)',
-      parameters: [{ label: 'table', documentation: 'Wavetable name or number' }],
-    }],
-  },
-  // Pattern manipulation
-  {
-    name: 'within',
-    detail: 'Within',
-    documentation: 'Apply function to a portion of the pattern',
-    signatures: [{
-      label: 'within(start, end, function)',
-      parameters: [
-        { label: 'start', documentation: 'Start position (0-1)' },
-        { label: 'end', documentation: 'End position (0-1)' },
-        { label: 'function', documentation: 'Function to apply' },
-      ],
-    }],
-  },
-  {
-    name: 'focus',
-    detail: 'Focus',
-    documentation: 'Focus on a portion of the pattern',
-    signatures: [{
-      label: 'focus(start, end)',
-      parameters: [
-        { label: 'start', documentation: 'Start position (0-1)' },
-        { label: 'end', documentation: 'End position (0-1)' },
-      ],
-    }],
-  },
-  {
-    name: 'contrast',
-    detail: 'Contrast',
-    documentation: 'Apply different functions based on a boolean pattern',
-    signatures: [{
-      label: 'contrast(trueFunc, falseFunc, boolPattern)',
-      parameters: [
-        { label: 'trueFunc', documentation: 'Function when true' },
-        { label: 'falseFunc', documentation: 'Function when false' },
-        { label: 'boolPattern', documentation: 'Boolean pattern' },
-      ],
-    }],
-  },
-  // Scramble and shuffle
-  {
-    name: 'scramble',
-    detail: 'Scramble',
-    documentation: 'Randomly rearrange pattern segments',
-    signatures: [{
-      label: 'scramble(n)',
-      parameters: [{ label: 'n', documentation: 'Number of segments' }],
-    }],
-  },
-  {
-    name: 'shuffle',
-    detail: 'Shuffle',
-    documentation: 'Shuffle pattern segments (same random order each cycle)',
-    signatures: [{
-      label: 'shuffle(n)',
-      parameters: [{ label: 'n', documentation: 'Number of segments' }],
-    }],
-  },
-  {
-    name: 'bite',
-    detail: 'Bite',
-    documentation: 'Slice and rearrange pattern segments',
-    signatures: [{
-      label: 'bite(n, pattern)',
-      parameters: [
-        { label: 'n', documentation: 'Number of segments' },
-        { label: 'pattern', documentation: 'Pattern of segment indices' },
-      ],
-    }],
-  },
-  // Inhabit
-  {
-    name: 'inhabit',
-    detail: 'Inhabit',
-    documentation: 'Map pattern values to other patterns',
-    signatures: [{
-      label: 'inhabit(mapping)',
-      parameters: [{ label: 'mapping', documentation: 'Object mapping values to patterns' }],
-    }],
-  },
-  // Weave
-  {
-    name: 'weave',
-    detail: 'Weave',
-    documentation: 'Weave patterns together with time offsets',
-    signatures: [{
-      label: 'weave(subdivisions, patterns...)',
-      parameters: [
-        { label: 'subdivisions', documentation: 'Number of subdivisions' },
-        { label: 'patterns', documentation: 'Patterns to weave' },
-      ],
-    }],
-  },
-  {
-    name: 'weaveWith',
-    detail: 'Weave with function',
-    documentation: 'Weave with a function applied at each step',
-    signatures: [{
-      label: 'weaveWith(subdivisions, function, patterns...)',
-      parameters: [
-        { label: 'subdivisions', documentation: 'Number of subdivisions' },
-        { label: 'function', documentation: 'Function to apply' },
-        { label: 'patterns', documentation: 'Patterns to weave' },
-      ],
-    }],
-  },
-  // Spin and stripe
-  {
-    name: 'spin',
-    detail: 'Spin',
-    documentation: 'Layer pattern with itself, rotated in stereo',
-    signatures: [{
-      label: 'spin(n)',
-      parameters: [{ label: 'n', documentation: 'Number of rotations' }],
-    }],
-  },
-  {
-    name: 'stripe',
-    detail: 'Stripe',
-    documentation: 'Apply function in stripes across the pattern',
-    signatures: [{
-      label: 'stripe(n)',
-      parameters: [{ label: 'n', documentation: 'Number of stripes' }],
-    }],
-  },
-  // Reset
-  {
-    name: 'reset',
-    detail: 'Reset',
-    documentation: 'Reset pattern when triggered',
-    signatures: [{
-      label: 'reset(trigger)',
-      parameters: [{ label: 'trigger', documentation: 'Trigger pattern' }],
-    }],
-  },
-  {
-    name: 'resetCycles',
-    detail: 'Reset cycles',
-    documentation: 'Reset pattern after N cycles',
-    signatures: [{
-      label: 'resetCycles(n)',
-      parameters: [{ label: 'n', documentation: 'Number of cycles before reset' }],
-    }],
-  },
-  // Set
-  {
-    name: 'set',
-    detail: 'Set',
-    documentation: 'Set control values from an object pattern',
-    signatures: [{
-      label: 'set(pattern)',
-      parameters: [{ label: 'pattern', documentation: 'Pattern of {control: value} objects' }],
-    }],
-  },
-  // MIDI
-  {
-    name: 'ccn',
-    detail: 'CC number',
-    documentation: 'Set MIDI CC number',
-    signatures: [{
-      label: 'ccn(number)',
-      parameters: [{ label: 'number', documentation: 'MIDI CC number (0-127)' }],
-    }],
-  },
-  {
-    name: 'ccv',
-    detail: 'CC value',
-    documentation: 'Set MIDI CC value',
-    signatures: [{
-      label: 'ccv(value)',
-      parameters: [{ label: 'value', documentation: 'MIDI CC value (0-127)' }],
-    }],
-  },
-  {
-    name: 'midichan',
-    detail: 'MIDI channel',
-    documentation: 'Set MIDI channel',
-    signatures: [{
-      label: 'midichan(channel)',
-      parameters: [{ label: 'channel', documentation: 'MIDI channel (0-15)' }],
-    }],
-  },
-  {
-    name: 'midiport',
-    detail: 'MIDI port',
-    documentation: 'Set MIDI output port',
-    signatures: [{
-      label: 'midiport(port)',
-      parameters: [{ label: 'port', documentation: 'MIDI port name' }],
-    }],
-  },
-  // Color/visualization
-  {
-    name: 'color',
-    detail: 'Color',
-    documentation: 'Set color for visualization',
-    signatures: [{
-      label: 'color(value)',
-      parameters: [{ label: 'value', documentation: 'Color value (CSS color or pattern)' }],
-    }],
-  },
-  // Utility
-  {
-    name: 'log',
-    detail: 'Log',
-    documentation: 'Log pattern values to console for debugging',
-    signatures: [{
-      label: 'log()',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'apply',
-    detail: 'Apply',
-    documentation: 'Apply a function to the pattern',
-    signatures: [{
-      label: 'apply(function)',
-      parameters: [{ label: 'function', documentation: 'Function to apply' }],
-    }],
-  },
-  {
-    name: 'all',
-    detail: 'All',
-    documentation: 'Apply function to all events',
-    signatures: [{
-      label: 'all(function)',
-      parameters: [{ label: 'function', documentation: 'Function to apply to all events' }],
-    }],
-  },
-  // Press
-  {
-    name: 'press',
-    detail: 'Press',
-    documentation: 'Compress events to the first half of their timespan',
-    signatures: [{
-      label: 'press()',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'pressBy',
-    detail: 'Press by',
-    documentation: 'Compress events by a specified amount',
-    signatures: [{
-      label: 'pressBy(amount)',
-      parameters: [{ label: 'amount', documentation: 'Compression amount (0-1)' }],
-    }],
-  },
-  // Pick functions for sample selection
-  {
-    name: 'pickF',
-    detail: 'Pick with function',
-    documentation: 'Pick samples using a function',
-    signatures: [{
-      label: 'pickF(function)',
-      parameters: [{ label: 'function', documentation: 'Function to determine sample selection' }],
-    }],
-  },
-  {
-    name: 'pickOut',
-    detail: 'Pick out',
-    documentation: 'Pick samples cycling through indices',
-    signatures: [{
-      label: 'pickOut(pattern)',
-      parameters: [{ label: 'pattern', documentation: 'Pattern of sample indices' }],
-    }],
-  },
-  {
-    name: 'pickRestart',
-    detail: 'Pick restart',
-    documentation: 'Pick samples, restarting on each cycle',
-    signatures: [{
-      label: 'pickRestart()',
-      parameters: [],
-    }],
-  },
-  // Granular
-  {
-    name: 'granular',
-    detail: 'Granular',
-    documentation: 'Apply granular synthesis',
-    signatures: [{
-      label: 'granular(options)',
-      parameters: [{ label: 'options', documentation: 'Granular synthesis options' }],
-    }],
-  },
-  // Core Pattern methods (functional programming primitives)
-  {
-    name: 'fmap',
-    detail: 'Map function over pattern values',
-    documentation: 'Apply a function to each value in the pattern. This is the core mapping operation for transforming pattern values.',
-    signatures: [{
-      label: 'fmap(function)',
-      parameters: [{ label: 'function', documentation: 'Function to apply to each value: (value) => newValue' }],
-    }],
-  },
-  {
-    name: 'withValue',
-    detail: 'Transform pattern values',
-    documentation: 'Apply a function to transform each value in the pattern (alias for fmap)',
-    signatures: [{
-      label: 'withValue(function)',
-      parameters: [{ label: 'function', documentation: 'Function to apply to each value' }],
-    }],
-  },
-  {
-    name: 'withHap',
-    detail: 'Transform pattern events',
-    documentation: 'Apply a function to each hap (event) in the pattern, giving access to timing information',
-    signatures: [{
-      label: 'withHap(function)',
-      parameters: [{ label: 'function', documentation: 'Function to apply to each hap: (hap) => newHap' }],
-    }],
-  },
-  {
-    name: 'withHaps',
-    detail: 'Transform all pattern events',
-    documentation: 'Apply a function to all haps (events) in a query result',
-    signatures: [{
-      label: 'withHaps(function)',
-      parameters: [{ label: 'function', documentation: 'Function to apply to haps array: (haps) => newHaps' }],
-    }],
-  },
-  {
-    name: 'filterValues',
-    detail: 'Filter pattern values',
-    documentation: 'Keep only values that pass a predicate function',
-    signatures: [{
-      label: 'filterValues(predicate)',
-      parameters: [{ label: 'predicate', documentation: 'Function returning true/false: (value) => boolean' }],
-    }],
-  },
-  {
-    name: 'filterHaps',
-    detail: 'Filter pattern events',
-    documentation: 'Keep only haps (events) that pass a predicate function',
-    signatures: [{
-      label: 'filterHaps(predicate)',
-      parameters: [{ label: 'predicate', documentation: 'Function returning true/false: (hap) => boolean' }],
-    }],
-  },
-  {
-    name: 'register',
-    detail: 'Register custom pattern method',
-    documentation: 'Register a new method that can be called on patterns. Use this to create reusable pattern transformations.',
-    signatures: [{
-      label: 'register(name, function)',
-      parameters: [
-        { label: 'name', documentation: 'Name of the new method' },
-        { label: 'function', documentation: 'Function implementing the method: (arg, pattern) => newPattern' },
-      ],
-    }],
-  },
-  {
-    name: 'onTrigger',
-    detail: 'Trigger callback',
-    documentation: 'Call a function when each event triggers (for side effects)',
-    signatures: [{
-      label: 'onTrigger(callback)',
-      parameters: [{ label: 'callback', documentation: 'Function to call: (hap, currentTime, duration) => void' }],
-    }],
-  },
-  {
-    name: 'query',
-    detail: 'Query pattern',
-    documentation: 'Get events from a pattern for a given time span',
-    signatures: [{
-      label: 'query(state)',
-      parameters: [{ label: 'state', documentation: 'Query state with span {begin, end}' }],
-    }],
-  },
-  {
-    name: 'firstCycle',
-    detail: 'Get first cycle',
-    documentation: 'Get all events in the first cycle of a pattern (useful for debugging)',
-    signatures: [{
-      label: 'firstCycle()',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'showFirstCycle',
-    detail: 'Show first cycle',
-    documentation: 'Print all events in the first cycle (for debugging)',
-    signatures: [{
-      label: 'showFirstCycle()',
-      parameters: [],
-    }],
-  },
-  // === AUTO-GENERATED FROM STRUDEL JSDOC ===
-  {
-    name: 'wtenv',
-    detail: 'Amount of envelope applied wavetable oscillator\'s position e',
-    documentation: 'Amount of envelope applied wavetable oscillator\'s position envelope',
-    signatures: [{
-      label: 'wtenv(amount)',
-      parameters: [
-        { label: 'amount', documentation: 'between 0 and 1' }
-      ],
-    }],
-  },
-  {
-    name: 'wtattack',
-    detail: 'Attack time of the wavetable oscillator\'s position envelope',
-    documentation: 'Attack time of the wavetable oscillator\'s position envelope',
-    signatures: [{
-      label: 'wtattack(time)',
-      parameters: [
-        { label: 'time', documentation: 'attack time in seconds' }
-      ],
-    }],
-  },
-  {
-    name: 'wtdecay',
-    detail: 'Decay time of the wavetable oscillator\'s position envelope',
-    documentation: 'Decay time of the wavetable oscillator\'s position envelope',
-    signatures: [{
-      label: 'wtdecay(time)',
-      parameters: [
-        { label: 'time', documentation: 'decay time in seconds' }
-      ],
-    }],
-  },
-  {
-    name: 'wtsustain',
-    detail: 'Sustain time of the wavetable oscillator\'s position envelope',
-    documentation: 'Sustain time of the wavetable oscillator\'s position envelope',
-    signatures: [{
-      label: 'wtsustain(gain)',
-      parameters: [
-        { label: 'gain', documentation: 'sustain level (0 to 1)' }
-      ],
-    }],
-  },
-  {
-    name: 'wtrelease',
-    detail: 'Release time of the wavetable oscillator\'s position envelope',
-    documentation: 'Release time of the wavetable oscillator\'s position envelope',
-    signatures: [{
-      label: 'wtrelease(time)',
-      parameters: [
-        { label: 'time', documentation: 'release time in seconds' }
-      ],
-    }],
-  },
-  {
-    name: 'wtrate',
-    detail: 'Rate of the LFO for the wavetable oscillator\'s position',
-    documentation: 'Rate of the LFO for the wavetable oscillator\'s position',
-    signatures: [{
-      label: 'wtrate(rate)',
-      parameters: [
-        { label: 'rate', documentation: 'rate in hertz' }
-      ],
-    }],
-  },
-  {
-    name: 'wtsync',
-    detail: 'cycle synced rate of the LFO for the wavetable oscillator\'s ',
-    documentation: 'cycle synced rate of the LFO for the wavetable oscillator\'s position',
-    signatures: [{
-      label: 'wtsync(rate)',
-      parameters: [
-        { label: 'rate', documentation: 'rate in cycles' }
-      ],
-    }],
-  },
-  {
-    name: 'wtdepth',
-    detail: 'Depth of the LFO for the wavetable oscillator\'s position',
-    documentation: 'Depth of the LFO for the wavetable oscillator\'s position',
-    signatures: [{
-      label: 'wtdepth(depth)',
-      parameters: [
-        { label: 'depth', documentation: 'depth of modulation' }
-      ],
-    }],
-  },
-  {
-    name: 'wtshape',
-    detail: 'Shape of the LFO for the wavetable oscillator\'s position',
-    documentation: 'Shape of the LFO for the wavetable oscillator\'s position',
-    signatures: [{
-      label: 'wtshape(shape)',
-      parameters: [
-        { label: 'shape', documentation: 'Shape of the lfo (0, 1, 2, ..)' }
-      ],
-    }],
-  },
-  {
-    name: 'wtdc',
-    detail: 'DC offset of the LFO for the wavetable oscillator\'s position',
-    documentation: 'DC offset of the LFO for the wavetable oscillator\'s position',
-    signatures: [{
-      label: 'wtdc(dcoffset)',
-      parameters: [
-        { label: 'dcoffset', documentation: 'dc offset. set to 0 for unipolar' }
-      ],
-    }],
-  },
-  {
-    name: 'wtskew',
-    detail: 'Skew of the LFO for the wavetable oscillator\'s position',
-    documentation: 'Skew of the LFO for the wavetable oscillator\'s position',
-    signatures: [{
-      label: 'wtskew(skew)',
-      parameters: [
-        { label: 'skew', documentation: 'How much to bend the LFO shape' }
-      ],
-    }],
-  },
-  {
-    name: 'warp',
-    detail: 'Amount of warp (alteration of the waveform) to apply to the ',
-    documentation: 'Amount of warp (alteration of the waveform) to apply to the wavetable oscillator .',
-    signatures: [{
-      label: 'warp(amount)',
-      parameters: [
-        { label: 'amount', documentation: 'Warp of the wavetable from 0 to 1' }
-      ],
-    }],
-  },
-  {
-    name: 'warpattack',
-    detail: 'Attack time of the wavetable oscillator\'s warp envelope',
-    documentation: 'Attack time of the wavetable oscillator\'s warp envelope',
-    signatures: [{
-      label: 'warpattack(time)',
-      parameters: [
-        { label: 'time', documentation: 'attack time in seconds' }
-      ],
-    }],
-  },
-  {
-    name: 'warpdecay',
-    detail: 'Decay time of the wavetable oscillator\'s warp envelope',
-    documentation: 'Decay time of the wavetable oscillator\'s warp envelope',
-    signatures: [{
-      label: 'warpdecay(time)',
-      parameters: [
-        { label: 'time', documentation: 'decay time in seconds' }
-      ],
-    }],
-  },
-  {
-    name: 'warpsustain',
-    detail: 'Sustain time of the wavetable oscillator\'s warp envelope',
-    documentation: 'Sustain time of the wavetable oscillator\'s warp envelope',
-    signatures: [{
-      label: 'warpsustain(gain)',
-      parameters: [
-        { label: 'gain', documentation: 'sustain level (0 to 1)' }
-      ],
-    }],
-  },
-  {
-    name: 'warprelease',
-    detail: 'Release time of the wavetable oscillator\'s warp envelope',
-    documentation: 'Release time of the wavetable oscillator\'s warp envelope',
-    signatures: [{
-      label: 'warprelease(time)',
-      parameters: [
-        { label: 'time', documentation: 'release time in seconds' }
-      ],
-    }],
-  },
-  {
-    name: 'warprate',
-    detail: 'Rate of the LFO for the wavetable oscillator\'s warp',
-    documentation: 'Rate of the LFO for the wavetable oscillator\'s warp',
-    signatures: [{
-      label: 'warprate(rate)',
-      parameters: [
-        { label: 'rate', documentation: 'rate in hertz' }
-      ],
-    }],
-  },
-  {
-    name: 'warpdepth',
-    detail: 'Depth of the LFO for the wavetable oscillator\'s warp',
-    documentation: 'Depth of the LFO for the wavetable oscillator\'s warp',
-    signatures: [{
-      label: 'warpdepth(depth)',
-      parameters: [
-        { label: 'depth', documentation: 'depth of modulation' }
-      ],
-    }],
-  },
-  {
-    name: 'warpshape',
-    detail: 'Shape of the LFO for the wavetable oscillator\'s warp',
-    documentation: 'Shape of the LFO for the wavetable oscillator\'s warp',
-    signatures: [{
-      label: 'warpshape(shape)',
-      parameters: [
-        { label: 'shape', documentation: 'Shape of the lfo (0, 1, 2, ..)' }
-      ],
-    }],
-  },
-  {
-    name: 'warpdc',
-    detail: 'DC offset of the LFO for the wavetable oscillator\'s warp',
-    documentation: 'DC offset of the LFO for the wavetable oscillator\'s warp',
-    signatures: [{
-      label: 'warpdc(dcoffset)',
-      parameters: [
-        { label: 'dcoffset', documentation: 'dc offset. set to 0 for unipolar' }
-      ],
-    }],
-  },
-  {
-    name: 'warpskew',
-    detail: 'Skew of the LFO for the wavetable oscillator\'s warp',
-    documentation: 'Skew of the LFO for the wavetable oscillator\'s warp',
-    signatures: [{
-      label: 'warpskew(skew)',
-      parameters: [
-        { label: 'skew', documentation: 'How much to bend the LFO shape' }
-      ],
-    }],
-  },
-  {
-    name: 'warpmode',
-    detail: 'Type of warp (alteration of the waveform) to apply to the wa',
-    documentation: 'Type of warp (alteration of the waveform) to apply to the wavetable oscillator. The current options are: none, asym, bendp, bendm, bendmp, sync, quant, fold, pwm, orbit, spin, chaos, primes, binary, brownian, reciprocal, wormhole, logistic, sigmoid, fractal, flip .',
-    signatures: [{
-      label: 'warpmode(mode)',
-      parameters: [
-        { label: 'mode', documentation: 'Warp mode' }
-      ],
-    }],
-  },
-  {
-    name: 'wtphaserand',
-    detail: 'Amount of randomness of the initial phase of the wavetable o',
-    documentation: 'Amount of randomness of the initial phase of the wavetable oscillator.',
-    signatures: [{
-      label: 'wtphaserand(amount)',
-      parameters: [
-        { label: 'amount', documentation: 'Randomness of the initial phase. Between 0 (not random) and 1 (fully random)' }
-      ],
-    }],
-  },
-  {
-    name: 'warpenv',
-    detail: 'Amount of envelope applied wavetable oscillator\'s position e',
-    documentation: 'Amount of envelope applied wavetable oscillator\'s position envelope',
-    signatures: [{
-      label: 'warpenv(amount)',
-      parameters: [
-        { label: 'amount', documentation: 'between 0 and 1' }
-      ],
-    }],
-  },
-  {
-    name: 'warpsync',
-    detail: 'cycle synced rate of the LFO for the wavetable warp position',
-    documentation: 'cycle synced rate of the LFO for the wavetable warp position',
-    signatures: [{
-      label: 'warpsync(rate)',
-      parameters: [
-        { label: 'rate', documentation: 'rate in cycles' }
-      ],
-    }],
-  },
-  {
-    name: 'source',
-    detail: 'Define a custom webaudio node to use as a sound source',
-    documentation: 'Define a custom webaudio node to use as a sound source.',
-    signatures: [{
-      label: 'source(getSource)',
-      parameters: [
-        { label: 'getSource', documentation: '* @synonyms src' }
-      ],
-    }],
-  },
-  {
-    name: 'accelerate',
-    detail: 'A pattern of numbers that speed up (or slow down) samples wh',
-    documentation: 'A pattern of numbers that speed up (or slow down) samples while they play. Currently only supported by osc / superdirt.',
-    signatures: [{
-      label: 'accelerate(amount)',
-      parameters: [
-        { label: 'amount', documentation: 'acceleration.' }
-      ],
-    }],
-  },
-  {
-    name: 'postgain',
-    detail: 'Gain applied after all effects have been processed',
-    documentation: 'Gain applied after all effects have been processed. .',
-    signatures: [{
-      label: 'postgain()',
-      parameters: [
-
-      ],
-    }],
-  },
-  {
-    name: 'fmenv',
-    detail: 'Ramp type of fm envelope',
-    documentation: 'Ramp type of fm envelope. Exp might be a bit broken.. . . . . ._',
-    signatures: [{
-      label: 'fmenv(type)',
-      parameters: [
-        { label: 'type', documentation: 'lin | exp' }
-      ],
-    }],
-  },
-  {
-    name: 'fmattack',
-    detail: 'Attack time for the FM envelope: time it takes to reach maxi',
-    documentation: 'Attack time for the FM envelope: time it takes to reach maximum modulation . . ._',
-    signatures: [{
-      label: 'fmattack(time)',
-      parameters: [
-        { label: 'time', documentation: 'attack time' }
-      ],
-    }],
-  },
-  {
-    name: 'fmwave',
-    detail: 'Waveform of the fm modulator)',
-    documentation: 'Waveform of the fm modulator).).',
-    signatures: [{
-      label: 'fmwave(wave)',
-      parameters: [
-        { label: 'wave', documentation: 'waveform' }
-      ],
-    }],
-  },
-  {
-    name: 'fmdecay',
-    detail: 'Decay time for the FM envelope: seconds until the sustain le',
-    documentation: 'Decay time for the FM envelope: seconds until the sustain level is reached after the attack phase. . . . ._',
-    signatures: [{
-      label: 'fmdecay(time)',
-      parameters: [
-        { label: 'time', documentation: 'decay time' }
-      ],
-    }],
-  },
-  {
-    name: 'fmsustain',
-    detail: 'Sustain level for the FM envelope: how much modulation is ap',
-    documentation: 'Sustain level for the FM envelope: how much modulation is applied after the decay phase . . . ._',
-    signatures: [{
-      label: 'fmsustain(level)',
-      parameters: [
-        { label: 'level', documentation: 'sustain level' }
-      ],
-    }],
-  },
-  {
-    name: 'chorus',
-    detail: 'mix control for the chorus effect',
-    documentation: 'mix control for the chorus effect',
-    signatures: [{
-      label: 'chorus(chorus)',
-      parameters: [
-        { label: 'chorus', documentation: 'mix amount between 0 and 1' }
-      ],
-    }],
-  },
-  {
-    name: 'bpq',
-    detail: 'Sets the **b**and-**p**ass **q**-factor (resonance)',
-    documentation: 'Sets the **b**and-**p**ass **q**-factor (resonance). / // currently an alias of \'bandq\' https://codeberg.org/uzu/strudel/issues/496 // [\'bpq\'], export const { bandq, bpq } =; /** A pattern of numbers from 0 to 1. Skips the beginning of each sample, e.g. `0.25` to cut off the first quarter from each sample.',
-    signatures: [{
-      label: 'bpq(q, amount)',
-      parameters: [
-        { label: 'q', documentation: 'q factor' },
-        { label: 'amount', documentation: 'between 0 and 1, where 1 is the length of the sample' }
-      ],
-    }],
-  },
-  {
-    name: 'loop',
-    detail: 'Loops the sample',
-    documentation: 'Loops the sample. Note that the tempo of the loop is not synced with the cycle tempo. To change the loop region, use loopBegin / loopEnd.',
-    signatures: [{
-      label: 'loop(on)',
-      parameters: [
-        { label: 'on', documentation: 'If 1, the sample is looped' }
-      ],
-    }],
-  },
-  {
-    name: 'loopBegin',
-    detail: 'Begin to loop at a specific point in the sample (inbetween `',
-    documentation: 'Begin to loop at a specific point in the sample (inbetween `begin` and `end`). Note that the loop point must be inbetween `begin` and `end`, and before `loopEnd`! Note: Samples starting with wt_ will automatically loop! (wt = wavetable) .._',
-    signatures: [{
-      label: 'loopBegin(time)',
-      parameters: [
-        { label: 'time', documentation: 'between 0 and 1, where 1 is the length of the sample' }
-      ],
-    }],
-  },
-  {
-    name: 'loopEnd',
-    detail: 'End the looping section at a specific point in the sample (i',
-    documentation: 'End the looping section at a specific point in the sample (inbetween `begin` and `end`). Note that the loop point must be inbetween `begin` and `end`, and after `loopBegin`! .._',
-    signatures: [{
-      label: 'loopEnd(time)',
-      parameters: [
-        { label: 'time', documentation: 'between 0 and 1, where 1 is the length of the sample' }
-      ],
-    }],
-  },
-  {
-    name: 'tremolosync',
-    detail: 'Modulate the amplitude of a sound with a continuous waveform',
-    documentation: 'Modulate the amplitude of a sound with a continuous waveform).',
-    signatures: [{
-      label: 'tremolosync(cycles)',
-      parameters: [
-        { label: 'cycles', documentation: 'modulation speed in cycles' }
-      ],
-    }],
-  },
-  {
-    name: 'tremolodepth',
-    detail: 'Depth of amplitude modulation)',
-    documentation: 'Depth of amplitude modulation).',
-    signatures: [{
-      label: 'tremolodepth(depth)',
-      parameters: [
-        { label: 'depth', documentation: '* @example' }
-      ],
-    }],
-  },
-  {
-    name: 'tremoloskew',
-    detail: 'Alter the shape of the modulation waveform',
-    documentation: 'Alter the shape of the modulation waveform',
-    signatures: [{
-      label: 'tremoloskew(amount)',
-      parameters: [
-        { label: 'amount', documentation: 'between 0 & 1, the shape of the waveform' }
-      ],
-    }],
-  },
-  {
-    name: 'tremolophase',
-    detail: 'Alter the phase of the modulation waveform',
-    documentation: 'Alter the phase of the modulation waveform',
-    signatures: [{
-      label: 'tremolophase(offset)',
-      parameters: [
-        { label: 'offset', documentation: 'the offset in cycles of the modulation' }
-      ],
-    }],
-  },
-  {
-    name: 'tremoloshape',
-    detail: 'Shape of amplitude modulation',
-    documentation: 'Shape of amplitude modulation',
-    signatures: [{
-      label: 'tremoloshape(shape)',
-      parameters: [
-        { label: 'shape', documentation: 'tri | square | sine | saw | ramp' }
-      ],
-    }],
-  },
-  {
-    name: 'drive',
-    detail: 'Filter overdrive for supported filter types)',
-    documentation: 'Filter overdrive for supported filter types).',
-    signatures: [{
-      label: 'drive(amount)',
-      parameters: [
-        { label: 'amount', documentation: '* @example' }
-      ],
-    }],
-  },
-  {
-    name: 'duckorbit',
-    detail: 'Modulate the amplitude of an orbit to create a "sidechain" l',
-    documentation: 'Modulate the amplitude of an orbit to create a "sidechain" like effect. Can be applied to multiple orbits with the \':\' mininotation, e.g. `` $:). $: $:). $: $:',
-    signatures: [{
-      label: 'duckorbit(orbit)',
-      parameters: [
-        { label: 'orbit', documentation: 'target orbit' }
-      ],
-    }],
-  },
-  {
-    name: 'duckdepth',
-    detail: 'The amount of ducking applied to target orbit Can vary acros',
-    documentation: 'The amount of ducking applied to target orbit Can vary across orbits with the \':\' mininotation, e.g. ``. Note: this requires first applying the effect to multiple orbits with e.g. ``.).,) $:). $: $:',
-    signatures: [{
-      label: 'duckdepth(depth)',
-      parameters: [
-        { label: 'depth', documentation: 'depth of modulation from 0 to 1' }
-      ],
-    }],
-  },
-  {
-    name: 'duckonset',
-    detail: 'The time required for the ducked to reach their lowest volum',
-    documentation: 'The time required for the ducked to reach their lowest volume. Can be used to prevent clicking or for creative rhythmic effects. Can vary across orbits with the \':\' mininotation, e.g. ``. Note: this requires first applying the effect to multiple orbits with e.g. ``. // Clicks sound: duckerWithClick: // No clicks sound: duckerWithoutClick: // Rhythmic noise: // used rhythmically with 0.3 onset below hhat: ducker:',
-    signatures: [{
-      label: 'duckonset(time)',
-      parameters: [
-        { label: 'time', documentation: 'The onset time in seconds' }
-      ],
-    }],
-  },
-  {
-    name: 'duckattack',
-    detail: 'The time required for the ducked to return to their normal v',
-    documentation: 'The time required for the ducked to return to their normal volume. Can vary across orbits with the \':\' mininotation, e.g. ``. Note: this requires first applying the effect to multiple orbits with e.g. ``. sound:). ducker: moreduck:). lessduck: ducker:',
-    signatures: [{
-      label: 'duckattack(time)',
-      parameters: [
-        { label: 'time', documentation: 'The attack time in seconds' }
-      ],
-    }],
-  },
-  {
-    name: 'byteBeatExpression',
-    detail: 'Create byte beats with custom expressions\')',
-    documentation: 'Create byte beats with custom expressions\')',
-    signatures: [{
-      label: 'byteBeatExpression(byteBeatExpression)',
-      parameters: [
-        { label: 'byteBeatExpression', documentation: 'bitwise expression for creating bytebeat' }
-      ],
-    }],
-  },
-  {
-    name: 'byteBeatStartTime',
-    detail: 'Create byte beats with custom expressions)',
-    documentation: 'Create byte beats with custom expressions).)._',
-    signatures: [{
-      label: 'byteBeatStartTime(byteBeatStartTime)',
-      parameters: [
-        { label: 'byteBeatStartTime', documentation: 'in samples (t)' }
-      ],
-    }],
-  },
-  {
-    name: 'channels',
-    detail: 'Allows you to set the output channels on the interface',
-    documentation: 'Allows you to set the output channels on the interface',
-    signatures: [{
-      label: 'channels(channels)',
-      parameters: [
-        { label: 'channels', documentation: 'pattern the output channels' }
-      ],
-    }],
-  },
-  {
-    name: 'pw',
-    detail: 'Controls the pulsewidth of the pulse oscillator)',
-    documentation: 'Controls the pulsewidth of the pulse oscillator).',
-    signatures: [{
-      label: 'pw(pulsewidth)',
-      parameters: [
-        { label: 'pulsewidth', documentation: '* @example' }
-      ],
-    }],
-  },
-  {
-    name: 'pwrate',
-    detail: 'Controls the lfo rate for the pulsewidth of the pulse oscill',
-    documentation: 'Controls the lfo rate for the pulsewidth of the pulse oscillator).',
-    signatures: [{
-      label: 'pwrate(rate)',
-      parameters: [
-        { label: 'rate', documentation: '* @example' }
-      ],
-    }],
-  },
-  {
-    name: 'pwsweep',
-    detail: 'Controls the lfo sweep for the pulsewidth of the pulse oscil',
-    documentation: 'Controls the lfo sweep for the pulsewidth of the pulse oscillator).',
-    signatures: [{
-      label: 'pwsweep(sweep)',
-      parameters: [
-        { label: 'sweep', documentation: '* @example' }
-      ],
-    }],
-  },
-  {
-    name: 'phasersweep',
-    detail: 'The frequency sweep range of the lfo for the phaser effect',
-    documentation: 'The frequency sweep range of the lfo for the phaser effect. Defaults to 2000). .',
-    signatures: [{
-      label: 'phasersweep(phasersweep)',
-      parameters: [
-        { label: 'phasersweep', documentation: 'most useful values are between 0 and 4000' }
-      ],
-    }],
-  },
-  {
-    name: 'phasercenter',
-    detail: 'The center frequency of the phaser in HZ',
-    documentation: 'The center frequency of the phaser in HZ. Defaults to 1000). .',
-    signatures: [{
-      label: 'phasercenter(centerfrequency)',
-      parameters: [
-        { label: 'centerfrequency', documentation: 'in HZ' }
-      ],
-    }],
-  },
-  {
-    name: 'phaserdepth',
-    detail: 'The amount the signal is affected by the phaser effect',
-    documentation: 'The amount the signal is affected by the phaser effect. Defaults to 0.75). . / // also a superdirt control export const { phaserdepth, phd, phasdp } =; /** Choose the channel the pattern is sent to in superdirt',
-    signatures: [{
-      label: 'phaserdepth(depth, channel)',
-      parameters: [
-        { label: 'depth', documentation: 'number between 0 and 1' },
-        { label: 'channel', documentation: 'channel number' }
-      ],
-    }],
-  },
-  {
-    name: 'lpenv',
-    detail: 'Sets the lowpass filter envelope modulation depth',
-    documentation: 'Sets the lowpass filter envelope modulation depth. . . . .',
-    signatures: [{
-      label: 'lpenv(modulation)',
-      parameters: [
-        { label: 'modulation', documentation: 'depth of the lowpass filter envelope between 0 and _n_' }
-      ],
-    }],
-  },
-  {
-    name: 'hpenv',
-    detail: 'Sets the highpass filter envelope modulation depth',
-    documentation: 'Sets the highpass filter envelope modulation depth. . . . .',
-    signatures: [{
-      label: 'hpenv(modulation)',
-      parameters: [
-        { label: 'modulation', documentation: 'depth of the highpass filter envelope between 0 and _n_' }
-      ],
-    }],
-  },
-  {
-    name: 'bpenv',
-    detail: 'Sets the bandpass filter envelope modulation depth',
-    documentation: 'Sets the bandpass filter envelope modulation depth. . . . .',
-    signatures: [{
-      label: 'bpenv(modulation)',
-      parameters: [
-        { label: 'modulation', documentation: 'depth of the bandpass filter envelope between 0 and _n_' }
-      ],
-    }],
-  },
-  {
-    name: 'lpattack',
-    detail: 'Sets the attack duration for the lowpass filter envelope',
-    documentation: 'Sets the attack duration for the lowpass filter envelope. . . . .',
-    signatures: [{
-      label: 'lpattack(attack)',
-      parameters: [
-        { label: 'attack', documentation: 'time of the filter envelope' }
-      ],
-    }],
-  },
-  {
-    name: 'hpattack',
-    detail: 'Sets the attack duration for the highpass filter envelope',
-    documentation: 'Sets the attack duration for the highpass filter envelope. . . . .',
-    signatures: [{
-      label: 'hpattack(attack)',
-      parameters: [
-        { label: 'attack', documentation: 'time of the highpass filter envelope' }
-      ],
-    }],
-  },
-  {
-    name: 'bpattack',
-    detail: 'Sets the attack duration for the bandpass filter envelope',
-    documentation: 'Sets the attack duration for the bandpass filter envelope. . . . .',
-    signatures: [{
-      label: 'bpattack(attack)',
-      parameters: [
-        { label: 'attack', documentation: 'time of the bandpass filter envelope' }
-      ],
-    }],
-  },
-  {
-    name: 'lpdecay',
-    detail: 'Sets the decay duration for the lowpass filter envelope',
-    documentation: 'Sets the decay duration for the lowpass filter envelope. . . . .',
-    signatures: [{
-      label: 'lpdecay(decay)',
-      parameters: [
-        { label: 'decay', documentation: 'time of the filter envelope' }
-      ],
-    }],
-  },
-  {
-    name: 'hpdecay',
-    detail: 'Sets the decay duration for the highpass filter envelope',
-    documentation: 'Sets the decay duration for the highpass filter envelope. . . . . .',
-    signatures: [{
-      label: 'hpdecay(decay)',
-      parameters: [
-        { label: 'decay', documentation: 'time of the highpass filter envelope' }
-      ],
-    }],
-  },
-  {
-    name: 'bpdecay',
-    detail: 'Sets the decay duration for the bandpass filter envelope',
-    documentation: 'Sets the decay duration for the bandpass filter envelope. . . . . .',
-    signatures: [{
-      label: 'bpdecay(decay)',
-      parameters: [
-        { label: 'decay', documentation: 'time of the bandpass filter envelope' }
-      ],
-    }],
-  },
-  {
-    name: 'lpsustain',
-    detail: 'Sets the sustain amplitude for the lowpass filter envelope',
-    documentation: 'Sets the sustain amplitude for the lowpass filter envelope. . . . . .',
-    signatures: [{
-      label: 'lpsustain(sustain)',
-      parameters: [
-        { label: 'sustain', documentation: 'amplitude of the lowpass filter envelope' }
-      ],
-    }],
-  },
-  {
-    name: 'hpsustain',
-    detail: 'Sets the sustain amplitude for the highpass filter envelope',
-    documentation: 'Sets the sustain amplitude for the highpass filter envelope. . . . . .',
-    signatures: [{
-      label: 'hpsustain(sustain)',
-      parameters: [
-        { label: 'sustain', documentation: 'amplitude of the highpass filter envelope' }
-      ],
-    }],
-  },
-  {
-    name: 'bpsustain',
-    detail: 'Sets the sustain amplitude for the bandpass filter envelope',
-    documentation: 'Sets the sustain amplitude for the bandpass filter envelope. . . . . .',
-    signatures: [{
-      label: 'bpsustain(sustain)',
-      parameters: [
-        { label: 'sustain', documentation: 'amplitude of the bandpass filter envelope' }
-      ],
-    }],
-  },
-  {
-    name: 'lprelease',
-    detail: 'Sets the release time for the lowpass filter envelope',
-    documentation: 'Sets the release time for the lowpass filter envelope. . . . . . .',
-    signatures: [{
-      label: 'lprelease(release)',
-      parameters: [
-        { label: 'release', documentation: 'time of the filter envelope' }
-      ],
-    }],
-  },
-  {
-    name: 'hprelease',
-    detail: 'Sets the release time for the highpass filter envelope',
-    documentation: 'Sets the release time for the highpass filter envelope. . . . . . .',
-    signatures: [{
-      label: 'hprelease(release)',
-      parameters: [
-        { label: 'release', documentation: 'time of the highpass filter envelope' }
-      ],
-    }],
-  },
-  {
-    name: 'bprelease',
-    detail: 'Sets the release time for the bandpass filter envelope',
-    documentation: 'Sets the release time for the bandpass filter envelope. . . . . . .',
-    signatures: [{
-      label: 'bprelease(release)',
-      parameters: [
-        { label: 'release', documentation: 'time of the bandpass filter envelope' }
-      ],
-    }],
-  },
-  {
-    name: 'ftype',
-    detail: 'Sets the filter type',
-    documentation: 'Sets the filter type. The ladder filter is more aggressive. More types might be added in the future. . . . .',
-    signatures: [{
-      label: 'ftype(type)',
-      parameters: [
-        { label: 'type', documentation: '12db (0), ladder (1), or 24db (2)' }
-      ],
-    }],
-  },
-  {
-    name: 'fanchor',
-    detail: 'controls the center of the filter envelope',
-    documentation: 'controls the center of the filter envelope. 0 is unipolar positive, .5 is bipolar, 1 is unipolar negative .',
-    signatures: [{
-      label: 'fanchor(center)',
-      parameters: [
-        { label: 'center', documentation: '0 to 1' }
-      ],
-    }],
-  },
-  {
-    name: 'vibmod',
-    detail: 'Sets the vibrato depth in semitones',
-    documentation: 'Sets the vibrato depth in semitones. Only has an effect if `vibrato` | `vib` | `v` is is also set . ._ // change the vibrato frequency with ":" . ._',
-    signatures: [{
-      label: 'vibmod(depth)',
-      parameters: [
-        { label: 'depth', documentation: 'of vibrato (in semitones)' }
-      ],
-    }],
-  },
-  {
-    name: 'hpq',
-    detail: 'Controls the **h**igh-**p**ass **q**-value',
-    documentation: 'Controls the **h**igh-**p**ass **q**-value.',
-    signatures: [{
-      label: 'hpq(q)',
-      parameters: [
-        { label: 'q', documentation: 'resonance factor between 0 and 50' }
-      ],
-    }],
-  },
-  {
-    name: 'lpq',
-    detail: 'Controls the **l**ow-**p**ass **q**-value',
-    documentation: 'Controls the **l**ow-**p**ass **q**-value. / // currently an alias of \'resonance\' https://codeberg.org/uzu/strudel/issues/496 export const { resonance, lpq } =; /** DJ filter, below 0.5 is low pass filter, above is high pass filter.).',
-    signatures: [{
-      label: 'lpq(q, cutoff)',
-      parameters: [
-        { label: 'q', documentation: 'resonance factor between 0 and 50' },
-        { label: 'cutoff', documentation: 'below 0.5 is low pass filter, above is high pass filter' }
-      ],
-    }],
-  },
-  {
-    name: 'delayspeed',
-    detail: 'Sets the time of the delay effect',
-    documentation: 'Sets the time of the delay effect.).',
-    signatures: [{
-      label: 'delayspeed(delayspeed)',
-      parameters: [
-        { label: 'delayspeed', documentation: 'controls the pitch of the delay feedback' }
-      ],
-    }],
-  },
-  {
-    name: 'delaysync',
-    detail: 'Sets the time of the delay effect in cycles',
-    documentation: 'Sets the time of the delay effect in cycles.)',
-    signatures: [{
-      label: 'delaysync(cycles)',
-      parameters: [
-        { label: 'cycles', documentation: 'delay length in cycles' }
-      ],
-    }],
-  },
-  {
-    name: 'lock',
-    detail: 'Specifies whether delaytime is calculated relative to cps',
-    documentation: 'Specifies whether delaytime is calculated relative to cps.',
-    signatures: [{
-      label: 'lock(enable)',
-      parameters: [
-        { label: 'enable', documentation: 'When set to 1, delaytime is a direct multiple of a cycle.' }
-      ],
-    }],
-  },
-  {
-    name: 'spread',
-    detail: 'Set the stereo pan spread for supported oscillators',
-    documentation: 'Set the stereo pan spread for supported oscillators',
-    signatures: [{
-      label: 'spread(spread)',
-      parameters: [
-        { label: 'spread', documentation: 'between 0 and 1' }
-      ],
-    }],
-  },
-  {
-    name: 'dry',
-    detail: 'Set dryness of reverb',
-    documentation: 'Set dryness of reverb. See `room` and `size` for more information about reverb.").',
-    signatures: [{
-      label: 'dry(dry)',
-      parameters: [
-        { label: 'dry', documentation: '0 = wet, 1 = dry' }
-      ],
-    }],
-  },
-  {
-    name: 'pattack',
-    detail: 'Attack time of pitch envelope',
-    documentation: 'Attack time of pitch envelope.',
-    signatures: [{
-      label: 'pattack(time)',
-      parameters: [
-        { label: 'time', documentation: 'time in seconds' }
-      ],
-    }],
-  },
-  {
-    name: 'pdecay',
-    detail: 'Decay time of pitch envelope',
-    documentation: 'Decay time of pitch envelope.',
-    signatures: [{
-      label: 'pdecay(time)',
-      parameters: [
-        { label: 'time', documentation: 'time in seconds' }
-      ],
-    }],
-  },
-  {
-    name: 'prelease',
-    detail: 'Release time of pitch envelope ',
-    documentation: 'Release time of pitch envelope . // to hear the pitch release .',
-    signatures: [{
-      label: 'prelease(time)',
-      parameters: [
-        { label: 'time', documentation: 'time in seconds' }
-      ],
-    }],
-  },
-  {
-    name: 'penv',
-    detail: 'Amount of pitch envelope',
-    documentation: 'Amount of pitch envelope. Negative values will flip the envelope. If you don\'t set other pitch envelope controls, `pattack:.2` will be the default. .',
-    signatures: [{
-      label: 'penv(semitones)',
-      parameters: [
-        { label: 'semitones', documentation: 'change in semitones' }
-      ],
-    }],
-  },
-  {
-    name: 'pcurve',
-    detail: 'Curve of envelope',
-    documentation: 'Curve of envelope. Defaults to linear. exponential is good for kicks . . .',
-    signatures: [{
-      label: 'pcurve(type)',
-      parameters: [
-        { label: 'type', documentation: '0 = linear, 1 = exponential' }
-      ],
-    }],
-  },
-  {
-    name: 'panchor',
-    detail: 'Sets the range anchor of the envelope: - anchor 0: range = [',
-    documentation: 'Sets the range anchor of the envelope: - anchor 0: range = [note, note + penv] - anchor 1: range = [note - penv, note] If you don\'t set an anchor, the value will default to the psustain value.',
-    signatures: [{
-      label: 'panchor(anchor)',
-      parameters: [
-        { label: 'anchor', documentation: 'anchor offset' }
-      ],
-    }],
-  },
-  {
-    name: 'lrate',
-    detail: 'Rate of modulation / rotation for leslie effect / // TODO: t',
-    documentation: 'Rate of modulation / rotation for leslie effect / // TODO: the rate seems to "lag" (in the example, 1 will be fast) export const { lrate } =; /** Physical size of the cabinet in meters. Be careful, it might be slightly larger than your computer. Affects the Doppler amount (pitch warble)',
-    signatures: [{
-      label: 'lrate(rate, meters)',
-      parameters: [
-        { label: 'rate', documentation: '6.7 for fast, 0.7 for slow' },
-        { label: 'meters', documentation: 'somewhere between 0 and 1' }
-      ],
-    }],
-  },
-  {
-    name: 'label',
-    detail: 'Sets the displayed text for an event on the pianoroll',
-    documentation: 'Sets the displayed text for an event on the pianoroll',
-    signatures: [{
-      label: 'label(label)',
-      parameters: [
-        { label: 'label', documentation: 'text to display' }
-      ],
-    }],
-  },
-  {
-    name: 'roomlp',
-    detail: 'Reverb lowpass starting frequency (in hertz)',
-    documentation: 'Reverb lowpass starting frequency (in hertz). When this property is changed, the reverb will be recaculated, so only change this sparsely..',
-    signatures: [{
-      label: 'roomlp(frequency)',
-      parameters: [
-        { label: 'frequency', documentation: 'between 0 and 20000hz' }
-      ],
-    }],
-  },
-  {
-    name: 'roomdim',
-    detail: 'Reverb lowpass frequency at -60dB (in hertz)',
-    documentation: 'Reverb lowpass frequency at -60dB (in hertz). When this property is changed, the reverb will be recaculated, so only change this sparsely..',
-    signatures: [{
-      label: 'roomdim(frequency)',
-      parameters: [
-        { label: 'frequency', documentation: 'between 0 and 20000hz' }
-      ],
-    }],
-  },
-  {
-    name: 'roomfade',
-    detail: 'Reverb fade time (in seconds)',
-    documentation: 'Reverb fade time (in seconds). When this property is changed, the reverb will be recaculated, so only change this sparsely..',
-    signatures: [{
-      label: 'roomfade(seconds)',
-      parameters: [
-        { label: 'seconds', documentation: 'for the reverb to fade' }
-      ],
-    }],
-  },
-  {
-    name: 'iresponse',
-    detail: 'Sets the sample to use as an impulse response for the reverb',
-    documentation: 'Sets the sample to use as an impulse response for the reverb.',
-    signatures: [{
-      label: 'iresponse(sample)',
-      parameters: [
-        { label: 'sample', documentation: 'to use as an impulse response' }
-      ],
-    }],
-  },
-  {
-    name: 'irspeed',
-    detail: 'Sets speed of the sample for the impulse response',
-    documentation: 'Sets speed of the sample for the impulse response. $:).',
-    signatures: [{
-      label: 'irspeed(speed)',
-      parameters: [
-        { label: 'speed', documentation: '* @example' }
-      ],
-    }],
-  },
-  {
-    name: 'irbegin',
-    detail: 'Sets the beginning of the IR response sample $:)',
-    documentation: 'Sets the beginning of the IR response sample $:).',
-    signatures: [{
-      label: 'irbegin(begin)',
-      parameters: [
-        { label: 'begin', documentation: 'between 0 and 1' }
-      ],
-    }],
-  },
-  {
-    name: 'roomsize',
-    detail: 'Sets the room size of the reverb, see `room`',
-    documentation: 'Sets the room size of the reverb, see `room`. When this property is changed, the reverb will be recaculated, so only change this sparsely.. / // TODO: find out why : // // .. does not work. Is it because room is only one effect? export const { roomsize, size, sz, rsize } =; // [\'sagogo\'], // [\'sclap\'], // [\'sclaves\'], // [\'scrash\'], /** (Deprecated) Wave shaping distortion. WARNING: can suddenly get unpredictably loud. Please use distort instead, which has a more predictable response curve second option in optional array syntax (ex: ".9:.5") applies a postgain to the output',
-    signatures: [{
-      label: 'roomsize(size, distortion)',
-      parameters: [
-        { label: 'size', documentation: 'between 0 and 10' },
-        { label: 'distortion', documentation: 'between 0 and 1' }
-      ],
-    }],
-  },
-  {
-    name: 'distortvol',
-    detail: 'Postgain for waveshaping distortion',
-    documentation: 'Postgain for waveshaping distortion.',
-    signatures: [{
-      label: 'distortvol(volume)',
-      parameters: [
-        { label: 'volume', documentation: 'linear postgain of the distortion' }
-      ],
-    }],
-  },
-  {
-    name: 'distorttype',
-    detail: 'Type of waveshaping distortion to apply',
-    documentation: 'Type of waveshaping distortion to apply. . .) .',
-    signatures: [{
-      label: 'distorttype(type)',
-      parameters: [
-        { label: 'type', documentation: 'type of distortion to apply' }
-      ],
-    }],
-  },
-  {
-    name: 'compressor',
-    detail: 'Dynamics Compressor',
-    documentation: 'Dynamics Compressor. The params are `` More info [here](https://developer.mozilla.org/en-US/docs/Web/API/DynamicsCompressorNode?retiredLocale=de#instance_properties) .',
-    signatures: [{
-      label: 'compressor()',
-      parameters: [
-
-      ],
-    }],
-  },
-  {
-    name: 'stretch',
-    detail: 'Changes the speed of sample playback, i',
-    documentation: 'Changes the speed of sample playback, i.e. a cheap way of changing pitch.',
-    signatures: [{
-      label: 'stretch(factor)',
-      parameters: [
-        { label: 'factor', documentation: '-inf to inf, negative numbers play the sample backwards.' }
-      ],
-    }],
-  },
-  {
-    name: 'density',
-    detail: 'Noise crackle density)',
-    documentation: 'Noise crackle density)',
-    signatures: [{
-      label: 'density(density)',
-      parameters: [
-        { label: 'density', documentation: 'between 0 and x' }
-      ],
-    }],
-  },
-  {
-    name: 'duration',
-    detail: 'Sets the duration of the event in cycles',
-    documentation: 'Sets the duration of the event in cycles. Similar to clip / legato, it also cuts samples off at the end if they exceed the duration.',
-    signatures: [{
-      label: 'duration(seconds)',
-      parameters: [
-        { label: 'seconds', documentation: '>= 0' }
-      ],
-    }],
-  },
-  {
-    name: 'midicmd',
-    detail: 'MIDI command: Sends a MIDI command message',
-    documentation: 'MIDI command: Sends a MIDI command message.',
-    signatures: [{
-      label: 'midicmd(command)',
-      parameters: [
-        { label: 'command', documentation: 'MIDI command' }
-      ],
-    }],
-  },
-  {
-    name: 'control',
-    detail: 'MIDI control: Sends a MIDI control change message',
-    documentation: 'MIDI control: Sends a MIDI control change message.',
-    signatures: [{
-      label: 'control(MIDI, MIDI)',
-      parameters: [
-        { label: 'MIDI', documentation: 'control number (0-127)' },
-        { label: 'MIDI', documentation: 'controller value (0-127)' }
-      ],
-    }],
-  },
-  {
-    name: 'nrpnn',
-    detail: 'MIDI NRPN non-registered parameter number: Sends a MIDI NRPN',
-    documentation: 'MIDI NRPN non-registered parameter number: Sends a MIDI NRPN non-registered parameter number message.',
-    signatures: [{
-      label: 'nrpnn(nrpnn)',
-      parameters: [
-        { label: 'nrpnn', documentation: 'MIDI NRPN non-registered parameter number (0-127)' }
-      ],
-    }],
-  },
-  {
-    name: 'nrpv',
-    detail: 'MIDI NRPN non-registered parameter value: Sends a MIDI NRPN ',
-    documentation: 'MIDI NRPN non-registered parameter value: Sends a MIDI NRPN non-registered parameter value message.',
-    signatures: [{
-      label: 'nrpv(nrpv)',
-      parameters: [
-        { label: 'nrpv', documentation: 'MIDI NRPN non-registered parameter value (0-127)' }
-      ],
-    }],
-  },
-  {
-    name: 'progNum',
-    detail: 'MIDI program number: Sends a MIDI program change message',
-    documentation: 'MIDI program number: Sends a MIDI program change message.',
-    signatures: [{
-      label: 'progNum(program)',
-      parameters: [
-        { label: 'program', documentation: 'MIDI program number (0-127)' }
-      ],
-    }],
-  },
-  {
-    name: 'sysex',
-    detail: 'MIDI sysex: Sends a MIDI sysex message',
-    documentation: 'MIDI sysex: Sends a MIDI sysex message.',
-    signatures: [{
-      label: 'sysex(id, data)',
-      parameters: [
-        { label: 'id', documentation: 'Sysex ID' },
-        { label: 'data', documentation: 'Sysex data' }
-      ],
-    }],
-  },
-  {
-    name: 'sysexid',
-    detail: 'MIDI sysex ID: Sends a MIDI sysex identifier message',
-    documentation: 'MIDI sysex ID: Sends a MIDI sysex identifier message.',
-    signatures: [{
-      label: 'sysexid(id)',
-      parameters: [
-        { label: 'id', documentation: 'Sysex ID' }
-      ],
-    }],
-  },
-  {
-    name: 'sysexdata',
-    detail: 'MIDI sysex data: Sends a MIDI sysex message',
-    documentation: 'MIDI sysex data: Sends a MIDI sysex message.',
-    signatures: [{
-      label: 'sysexdata(data)',
-      parameters: [
-        { label: 'data', documentation: 'Sysex data' }
-      ],
-    }],
-  },
-  {
-    name: 'midibend',
-    detail: 'MIDI pitch bend: Sends a MIDI pitch bend message',
-    documentation: 'MIDI pitch bend: Sends a MIDI pitch bend message.).',
-    signatures: [{
-      label: 'midibend(midibend)',
-      parameters: [
-        { label: 'midibend', documentation: 'MIDI pitch bend (-1 - 1)' }
-      ],
-    }],
-  },
-  {
-    name: 'miditouch',
-    detail: 'MIDI key after touch: Sends a MIDI key after touch message',
-    documentation: 'MIDI key after touch: Sends a MIDI key after touch message.).',
-    signatures: [{
-      label: 'miditouch(miditouch)',
-      parameters: [
-        { label: 'miditouch', documentation: 'MIDI key after touch (0-1)' }
-      ],
-    }],
-  },
-  {
-    name: 'oschost',
-    detail: 'The host to send open sound control messages to',
-    documentation: 'The host to send open sound control messages to. Requires running the OSC bridge.;',
-    signatures: [{
-      label: 'oschost(oschost)',
-      parameters: [
-        { label: 'oschost', documentation: 'e.g. \'localhost\'' }
-      ],
-    }],
-  },
-  {
-    name: 'oscport',
-    detail: 'The port to send open sound control messages to',
-    documentation: 'The port to send open sound control messages to. Requires running the OSC bridge.;',
-    signatures: [{
-      label: 'oscport(oscport)',
-      parameters: [
-        { label: 'oscport', documentation: 'e.g. 57120' }
-      ],
-    }],
-  },
-  {
-    name: 'as',
-    detail: 'Sets properties in a batch',
-    documentation: 'Sets properties in a batch. "c:.5 a:1 f:.25 e:.8". "{0@2 0.25 0 0.5 .3 .5}%8".',
-    signatures: [{
-      label: 'as(mapping)',
-      parameters: [
-        { label: 'mapping', documentation: 'the control names that are set' }
-      ],
-    }],
-  },
-  {
-    name: 'scrub',
-    detail: 'Allows you to scrub an audio file like a tape loop by passin',
-    documentation: 'Allows you to scrub an audio file like a tape loop by passing values that represents the position in the audio file in the optional array syntax ex: "0.5:2", the second value controls the speed of playback;)',
-    signatures: [{
-      label: 'scrub()',
-      parameters: [
-
-      ],
-    }],
-  },
-  {
-    name: 'euclidish',
-    detail: 'A \'euclid\' variant with an additional parameter that morphs ',
-    documentation: 'A \'euclid\' variant with an additional parameter that morphs the resulting rhythm from 0 (no morphing) to 1 (completely \'even\'). For example `` would be the same as ``, and `` would be the same as ``. `` would have a groove somewhere between. Inspired by the work of Malcom Braff.) .)',
-    signatures: [{
-      label: 'euclidish(pulses, steps, groove)',
-      parameters: [
-        { label: 'pulses', documentation: 'the number of onsets' },
-        { label: 'steps', documentation: 'the number of steps to fill' },
-        { label: 'groove', documentation: 'exists between the extremes of 0 (straight euclidian) and 1 (straight pulse)' }
-      ],
-    }],
-  },
-  {
-    name: 'round',
-    detail: 'Assumes a numerical pattern',
-    documentation: 'Assumes a numerical pattern. Returns a new pattern with all values rounded to the nearest integer.).',
-    signatures: [{
-      label: 'round()',
-      parameters: [
-
-      ],
-    }],
-  },
-  {
-    name: 'floor',
-    detail: 'Assumes a numerical pattern',
-    documentation: 'Assumes a numerical pattern. Returns a new pattern with all values set to their mathematical floor. E.g. `3.7` replaced with to `3`, and `-4.2` replaced with `-5`.)',
-    signatures: [{
-      label: 'floor()',
-      parameters: [
-
-      ],
-    }],
-  },
-  {
-    name: 'ceil',
-    detail: 'Assumes a numerical pattern',
-    documentation: 'Assumes a numerical pattern. Returns a new pattern with all values set to their mathematical ceiling. E.g. `3.2` replaced with `4`, and `-4.2` replaced with `-4`.)',
-    signatures: [{
-      label: 'ceil()',
-      parameters: [
-
-      ],
-    }],
-  },
-  {
-    name: 'rangex',
-    detail: 'Assumes a numerical pattern, containing unipolar values in t',
-    documentation: 'Assumes a numerical pattern, containing unipolar values in the range 0 .. 1 Returns a new pattern with values scaled to the given min/max range, following an exponential curve. .)',
-    signatures: [{
-      label: 'rangex()',
-      parameters: [
-
-      ],
-    }],
-  },
-  {
-    name: 'range2',
-    detail: 'Assumes a numerical pattern, containing bipolar values in th',
-    documentation: 'Assumes a numerical pattern, containing bipolar values in the range -1 .. 1 Returns a new pattern with values scaled to the given min/max range. .)',
-    signatures: [{
-      label: 'range2()',
-      parameters: [
-
-      ],
-    }],
-  },
-  {
-    name: 'ratio',
-    detail: 'Allows dividing numbers via list notation using ":"',
-    documentation: 'Allows dividing numbers via list notation using ":". Returns a new pattern with just numbers. .',
-    signatures: [{
-      label: 'ratio()',
-      parameters: [
-
-      ],
-    }],
-  },
-  {
-    name: 'invert',
-    detail: 'Swaps 1s and 0s in a binary pattern',
-    documentation: 'Swaps 1s and 0s in a binary pattern.)',
-    signatures: [{
-      label: 'invert()',
-      parameters: [
-
-      ],
-    }],
-  },
-  {
-    name: 'echoWith',
-    detail: 'Superimpose and offset multiple times, applying the given fu',
-    documentation: 'Superimpose and offset multiple times, applying the given function each time. "<0 [2 4]>" . => p.) .',
-    signatures: [{
-      label: 'echoWith(times, time, func)',
-      parameters: [
-        { label: 'times', documentation: 'how many times to repeat' },
-        { label: 'time', documentation: 'cycle offset between iterations' },
-        { label: 'func', documentation: 'function to apply, given the pattern and the iteration index' }
-      ],
-    }],
-  },
-  {
-    name: 'plyWith',
-    detail: 'The plyWith function repeats each event the given number of ',
-    documentation: 'The plyWith function repeats each event the given number of times, applying the given function to each event.\n "<0 [2 4]>" . => p.) .',
-    signatures: [{
-      label: 'plyWith(factor, func)',
-      parameters: [
-        { label: 'factor', documentation: 'how many times to repeat' },
-        { label: 'func', documentation: 'function to apply, given the pattern' }
-      ],
-    }],
-  },
-  {
-    name: 'plyForEach',
-    detail: 'The plyForEach function repeats each event the given number ',
-    documentation: 'The plyForEach function repeats each event the given number of times, applying the given function to each event. This version of ply uses the iteration index as an argument to the function, similar to echoWith. "<0 [2 4]>" . => p.) .',
-    signatures: [{
-      label: 'plyForEach(factor, func)',
-      parameters: [
-        { label: 'factor', documentation: 'how many times to repeat' },
-        { label: 'func', documentation: 'function to apply, given the pattern and the iteration index' }
-      ],
-    }],
-  },
-  {
-    name: 'repeatCycles',
-    detail: 'Repeats each cycle the given number of times',
-    documentation: 'Repeats each cycle the given number of times.).',
-    signatures: [{
-      label: 'repeatCycles()',
-      parameters: [
-
-      ],
-    }],
-  },
-  {
-    name: 'fastChunk',
-    detail: 'Like `chunk`, but the cycles of the source pattern aren\'t re',
-    documentation: 'Like `chunk`, but the cycles of the source pattern aren\'t repeated for each set of chunks. "<0 8> 1 2 3 4 5 6 7" .). .',
-    signatures: [{
-      label: 'fastChunk()',
-      parameters: [
-
-      ],
-    }],
-  },
-  {
-    name: 'chunkInto',
-    detail: 'Like `chunk`, but the function is applied to a looped subcyc',
-    documentation: 'Like `chunk`, but the function is applied to a looped subcycle of the source pattern.) .',
-    signatures: [{
-      label: 'chunkInto()',
-      parameters: [
-
-      ],
-    }],
-  },
-  {
-    name: 'chunkBackInto',
-    detail: 'Like `chunkInto`, but moves backwards through the chunks',
-    documentation: 'Like `chunkInto`, but moves backwards through the chunks.) .',
-    signatures: [{
-      label: 'chunkBackInto()',
-      parameters: [
-
-      ],
-    }],
-  },
-  {
-    name: 'ribbon',
-    detail: 'Loops the pattern inside an `offset` for `cycles`',
-    documentation: 'Loops the pattern inside an `offset` for `cycles`. If you think of the entire span of time in cycles as a ribbon, you can cut a single piece and loop it. // Looping a portion of randomness). // rhythm generator',
-    signatures: [{
-      label: 'ribbon(offset, cycles)',
-      parameters: [
-        { label: 'offset', documentation: 'start point of loop in cycles' },
-        { label: 'cycles', documentation: 'loop length in cycles' }
-      ],
-    }],
-  },
-  {
-    name: 'tag',
-    detail: 'Tags each Hap with an identifier',
-    documentation: 'Tags each Hap with an identifier. Good for filtering. The function populates Hap.context.tags (Array). / Pattern.prototype.tag = function (tag) { return this. => ({ ...ctx, tags: (ctx.tags || []). })); }; /** Filters haps using the given function',
-    signatures: [{
-      label: 'tag(tag, test)',
-      parameters: [
-        { label: 'tag', documentation: 'anything unique' },
-        { label: 'test', documentation: 'function to test Hap' }
-      ],
-    }],
-  },
-  {
-    name: 'filterWhen',
-    detail: 'Filters haps by their begin time',
-    documentation: 'Filters haps by their begin time',
-    signatures: [{
-      label: 'filterWhen(test)',
-      parameters: [
-        { label: 'test', documentation: 'function to test Hap.whole.begin' }
-      ],
-    }],
-  },
-  {
-    name: 'stepcat',
-    detail: '\'Concatenates\' patterns like `fastcat`, but proportional to ',
-    documentation: '\'Concatenates\' patterns like `fastcat`, but proportional to a number of steps per cycle. The steps can either be inferred from the pattern, or provided as a [length, pattern] pair. Has the alias `timecat`. // the same as "e3@3 g3". // the same as "bd sd cp hh hh".',
-    signatures: [{
-      label: 'stepcat()',
-      parameters: [
-
-      ],
-    }],
-  },
-  {
-    name: 'onTriggerTime',
-    detail: 'make something happen on event time uses browser timeout whi',
-    documentation: 'make something happen on event time uses browser timeout which is innacurate for audio tasks => {console.}) / Pattern.prototype.onTriggerTime = function (func) { return this. => { const diff = targetTime - currentTime; window. => {; }, diff * 1000); }, false); }; /** Works the same as slice, but changes the playback speed of each slice to match the duration of its step. .',
-    signatures: [{
-      label: 'onTriggerTime()',
-      parameters: [
-
-      ],
-    }],
-  },
-  {
-    name: 'loopAtCps',
-    detail: 'Makes the sample fit the given number of cycles and cps valu',
-    documentation: 'Makes the sample fit the given number of cycles and cps value, by changing the speed. Please note that at some point cps will be given by a global clock and this function will be deprecated/removed. / // TODO - global cps clock export const { loopAtCps, loopatcps } = { return _; }); /** exposes a custom value at query time. basically allows mutating state without evaluation',
-    signatures: [{
-      label: 'loopAtCps()',
-      parameters: [
-
-      ],
-    }],
-  },
-  {
-    name: 'xfade',
-    detail: 'Cross-fades between left and right from 0 to 1: - 0 = (full ',
-    documentation: 'Cross-fades between left and right from 0 to 1: - 0 = (full left, no right) - .5 = (both equal) - 1 = (no left, full right), "<0 .25 .5 .75 1>",)',
-    signatures: [{
-      label: 'xfade()',
-      parameters: [
-
-      ],
-    }],
-  },
-  {
-    name: 'beat',
-    detail: 'creates a structure pattern from divisions of a cycle especi',
-    documentation: 'creates a structure pattern from divisions of a cycle especially useful for creating rhythms / const __beat = (join) => (t, div, pat) => { t =; div =; const b = t.; const e = t.; return =>._)); }; export const { beat } = => x.), ); export const _morph = (from, to, by) => { by =; const dur =; const positions = (list) => { const result = []; for (const [pos, value] of list.) { if (value) { result., value]); } } return result; }; const arcs = => { const b = by.; const e = b.; return new; },,, ); function { const cycle = state.span.begin.; const cycleArc = state.span.; const result = []; for (const whole of arcs) { const part = whole.; if (part !== undefined) { result. => x.), part. => x.), true, ), ); } } return result; } return new; }; /** Takes two binary rhythms represented as lists of 1s and 0s, and a number between 0 and 1 that morphs between them. The two lists should contain the same number of true values. ) // slowly morph between the rhythms ) )',
-    signatures: [{
-      label: 'beat()',
-      parameters: [
-
-      ],
-    }],
-  },
-  {
-    name: 'inhabitmod',
-    detail: 'The same as `inhabit`, but if you pick a number greater than',
-    documentation: 'The same as `inhabit`, but if you pick a number greater than the size of the list, it wraps around, rather than sticking at the maximum value. For example, if you pick the fifth pattern of a list of three, you\'ll get the second one.',
-    signatures: [{
-      label: 'inhabitmod(pat)',
-      parameters: [
-        { label: 'pat', documentation: '* @param {*} xs' }
-      ],
-    }],
-  },
-  {
-    name: 'mousex',
-    detail: 'The mouse\'s x position value ranges from 0 to 1',
-    documentation: 'The mouse\'s x position value ranges from 0 to 1.). / /** The mouse\'s y position value ranges from 0 to 1.). / let _mouseY = 0, _mouseX = 0; if (typeof window !== \'undefined\') { //document.onmousemove = (e) => { document. => { _mouseY = e.clientY / document.body.clientHeight; _mouseX = e.clientX / document.body.clientWidth; }); } export const mousey = => _mouseY); export const mouseY = => _mouseY); export const mousex = => _mouseX); export const mouseX = => _mouseX); // random signals const xorwise = (x) => { const a = (x << 13) ^ x; const b = (a >> 17) ^ a; return (b << 5) ^ b; }; // stretch 300 cycles over the range of [0,2**29 == 536870912) then apply the xorshift algorithm const _frac = (x) => x - Math.; const timeToIntSeed = (x) => * 536870912)); const intSeedToRand = (x) => (x % 536870912) / 536870912; const timeToRand = (x) => Math.)); const timeToRandsPrime = (seed, n) => { const result = []; // eslint-disable-next-line for (let i = 0; i < n; ++i) { result.); seed =; } return result; }; const timeToRands = (t, n) =>, n); /** / /** A discrete pattern of numbers from 0 to n-1). //',
-    signatures: [{
-      label: 'mousex()',
-      parameters: [
-
-      ],
-    }],
-  },
-  {
-    name: 'brandBy',
-    detail: 'A continuous pattern of 0 or 1 (binary random), with a proba',
-    documentation: 'A continuous pattern of 0 or 1 (binary random), with a probability for the value being 1)',
-    signatures: [{
-      label: 'brandBy(probability)',
-      parameters: [
-        { label: 'probability', documentation: '- a number between 0 and 1' }
-      ],
-    }],
-  },
-  {
-    name: 'berlin',
-    detail: 'Generates a continuous pattern of [berlin noise](conceived b',
-    documentation: 'Generates a continuous pattern of [berlin noise](conceived by Jame Coyne and Jade Rowland as a joke but turned out to be surprisingly cool and useful, like perlin noise but with sawtooth waves), in the range 0..1. // ascending arpeggios)).',
-    signatures: [{
-      label: 'berlin()',
-      parameters: [
-
-      ],
-    }],
-  },
-  {
-    name: 'undegrade',
-    detail: 'Inverse of `degrade`: Randomly removes 50% of events from th',
-    documentation: 'Inverse of `degrade`: Randomly removes 50% of events from the pattern. Shorthand for `.` Events that would be removed by degrade are let through by undegrade and vice versa (see second example)., x => x. )',
-    signatures: [{
-      label: 'undegrade()',
-      parameters: [
-
-      ],
-    }],
-  },
-  {
-    name: 'whenKey',
-    detail: 'Do something on a keypress, or array of keypresses [Key name',
-    documentation: 'Do something on a keypress, or array of keypresses [Key name reference](https://developer.mozilla.org/en-US/docs/Web/API/UI_Events/Keyboard_event_key_values)").).)',
-    signatures: [{
-      label: 'whenKey()',
-      parameters: [
-
-      ],
-    }],
-  },
-  {
-    name: 'keyDown',
-    detail: 'returns true when a key or array of keys is held [Key name r',
-    documentation: 'returns true when a key or array of keys is held [Key name reference](https://developer.mozilla.org/en-US/docs/Web/API/UI_Events/Keyboard_event_key_values)"),")])',
-    signatures: [{
-      label: 'keyDown()',
-      parameters: [
-
-      ],
-    }],
-  },
-  {
-    name: 'addVoicings',
-    detail: 'Adds a new custom voicing dictionary',
-    documentation: 'Adds a new custom voicing dictionary. "<C^7 A7 Dm7 G7>".',
-    signatures: [{
-      label: 'addVoicings(name, dictionary, range)',
-      parameters: [
-        { label: 'name', documentation: 'identifier for the voicing dictionary' },
-        { label: 'dictionary', documentation: 'maps chord symbol to possible voicings' },
-        { label: 'range', documentation: 'min, max note' }
-      ],
-    }],
-  },
-
-  // === ALIASES (lowercase versions) ===
-  {
-    name: 'chunkbackinto',
-    detail: 'Alias for chunkBackInto',
-    documentation: 'Lowercase alias for chunkBackInto. See chunkBackInto for full documentation.',
-    signatures: [{
-      label: 'chunkbackinto(...)',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'chunkinto',
-    detail: 'Alias for chunkInto',
-    documentation: 'Lowercase alias for chunkInto. See chunkInto for full documentation.',
-    signatures: [{
-      label: 'chunkinto(...)',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'echowith',
-    detail: 'Alias for echoWith',
-    documentation: 'Lowercase alias for echoWith. See echoWith for full documentation.',
-    signatures: [{
-      label: 'echowith(...)',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'fastchunk',
-    detail: 'Alias for fastChunk',
-    documentation: 'Lowercase alias for fastChunk. See fastChunk for full documentation.',
-    signatures: [{
-      label: 'fastchunk(...)',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'fastgap',
-    detail: 'Alias for fastGap',
-    documentation: 'Lowercase alias for fastGap. See fastGap for full documentation.',
-    signatures: [{
-      label: 'fastgap(...)',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'iterback',
-    detail: 'Alias for iterBack',
-    documentation: 'Lowercase alias for iterBack. See iterBack for full documentation.',
-    signatures: [{
-      label: 'iterback(...)',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'juxby',
-    detail: 'Alias for juxBy',
-    documentation: 'Lowercase alias for juxBy. See juxBy for full documentation.',
-    signatures: [{
-      label: 'juxby(...)',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'loopat',
-    detail: 'Alias for loopAt',
-    documentation: 'Lowercase alias for loopAt. See loopAt for full documentation.',
-    signatures: [{
-      label: 'loopat(...)',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'loopatcps',
-    detail: 'Alias for loopAtCps',
-    documentation: 'Lowercase alias for loopAtCps. See loopAtCps for full documentation.',
-    signatures: [{
-      label: 'loopatcps(...)',
-      parameters: [],
-    }],
-  },
-
-  // === SHORT PARAMETER NAMES ===
-  {
-    name: 'and',
-    detail: 'Bitwise AND',
-    documentation: 'Shorthand for bitwise AND.',
-    signatures: [{
-      label: 'and(value)',
-      parameters: [{ label: 'value', documentation: 'Bitwise AND value' }],
-    }],
-  },
-  {
-    name: 'att',
-    detail: 'Attack',
-    documentation: 'Shorthand for attack.',
-    signatures: [{
-      label: 'att(value)',
-      parameters: [{ label: 'value', documentation: 'Attack value' }],
-    }],
-  },
-  {
-    name: 'bor',
-    detail: 'Bitwise OR',
-    documentation: 'Shorthand for bitwise OR.',
-    signatures: [{
-      label: 'bor(value)',
-      parameters: [{ label: 'value', documentation: 'Bitwise OR value' }],
-    }],
-  },
-  {
-    name: 'bp',
-    detail: 'Bandpass filter',
-    documentation: 'Shorthand for bandpass filter.',
-    signatures: [{
-      label: 'bp(value)',
-      parameters: [{ label: 'value', documentation: 'Bandpass filter value' }],
-    }],
-  },
-  {
-    name: 'bpa',
-    detail: 'Bandpass attack',
-    documentation: 'Shorthand for bandpass attack.',
-    signatures: [{
-      label: 'bpa(value)',
-      parameters: [{ label: 'value', documentation: 'Bandpass attack value' }],
-    }],
-  },
-  {
-    name: 'bpd',
-    detail: 'Bandpass decay',
-    documentation: 'Shorthand for bandpass decay.',
-    signatures: [{
-      label: 'bpd(value)',
-      parameters: [{ label: 'value', documentation: 'Bandpass decay value' }],
-    }],
-  },
-  {
-    name: 'bpe',
-    detail: 'Bandpass env',
-    documentation: 'Shorthand for bandpass env.',
-    signatures: [{
-      label: 'bpe(value)',
-      parameters: [{ label: 'value', documentation: 'Bandpass env value' }],
-    }],
-  },
-  {
-    name: 'bpr',
-    detail: 'Bandpass release',
-    documentation: 'Shorthand for bandpass release.',
-    signatures: [{
-      label: 'bpr(value)',
-      parameters: [{ label: 'value', documentation: 'Bandpass release value' }],
-    }],
-  },
-  {
-    name: 'bps',
-    detail: 'Bandpass sustain',
-    documentation: 'Shorthand for bandpass sustain.',
-    signatures: [{
-      label: 'bps(value)',
-      parameters: [{ label: 'value', documentation: 'Bandpass sustain value' }],
-    }],
-  },
-  {
-    name: 'ch',
-    detail: 'Channel',
-    documentation: 'Shorthand for channel.',
-    signatures: [{
-      label: 'ch(value)',
-      parameters: [{ label: 'value', documentation: 'Channel value' }],
-    }],
-  },
-  {
-    name: 'ctf',
-    detail: 'Cutoff frequency',
-    documentation: 'Shorthand for cutoff frequency.',
-    signatures: [{
-      label: 'ctf(value)',
-      parameters: [{ label: 'value', documentation: 'Cutoff frequency value' }],
-    }],
-  },
-  {
-    name: 'dec',
-    detail: 'Decay',
-    documentation: 'Shorthand for decay.',
-    signatures: [{
-      label: 'dec(value)',
-      parameters: [{ label: 'value', documentation: 'Decay value' }],
-    }],
-  },
-  {
-    name: 'det',
-    detail: 'Detune',
-    documentation: 'Shorthand for detune.',
-    signatures: [{
-      label: 'det(value)',
-      parameters: [{ label: 'value', documentation: 'Detune value' }],
-    }],
-  },
-  {
-    name: 'dfb',
-    detail: 'Delay feedback',
-    documentation: 'Shorthand for delay feedback.',
-    signatures: [{
-      label: 'dfb(value)',
-      parameters: [{ label: 'value', documentation: 'Delay feedback value' }],
-    }],
-  },
-  {
-    name: 'djf',
-    detail: 'DJ filter',
-    documentation: 'Shorthand for DJ filter.',
-    signatures: [{
-      label: 'djf(value)',
-      parameters: [{ label: 'value', documentation: 'DJ filter value' }],
-    }],
-  },
-  {
-    name: 'ds',
-    detail: 'Delay send',
-    documentation: 'Shorthand for delay send.',
-    signatures: [{
-      label: 'ds(value)',
-      parameters: [{ label: 'value', documentation: 'Delay send value' }],
-    }],
-  },
-  {
-    name: 'dt',
-    detail: 'Delay time',
-    documentation: 'Shorthand for delay time.',
-    signatures: [{
-      label: 'dt(value)',
-      parameters: [{ label: 'value', documentation: 'Delay time value' }],
-    }],
-  },
-  {
-    name: 'e',
-    detail: 'Euclidean pattern',
-    documentation: 'Shorthand for euclidean pattern.',
-    signatures: [{
-      label: 'e(value)',
-      parameters: [{ label: 'value', documentation: 'Euclidean pattern value' }],
-    }],
-  },
-  {
-    name: 'eq',
-    detail: 'Equalizer',
-    documentation: 'Shorthand for equalizer.',
-    signatures: [{
-      label: 'eq(value)',
-      parameters: [{ label: 'value', documentation: 'Equalizer value' }],
-    }],
-  },
-  {
-    name: 'eqt',
-    detail: 'EQ type',
-    documentation: 'Shorthand for EQ type.',
-    signatures: [{
-      label: 'eqt(value)',
-      parameters: [{ label: 'value', documentation: 'EQ type value' }],
-    }],
-  },
-  {
-    name: 'fft',
-    detail: 'FFT analysis',
-    documentation: 'Shorthand for FFT analysis.',
-    signatures: [{
-      label: 'fft(value)',
-      parameters: [{ label: 'value', documentation: 'FFT analysis value' }],
-    }],
-  },
-  {
-    name: 'gap',
-    detail: 'Gap/rest',
-    documentation: 'Shorthand for gap/rest.',
-    signatures: [{
-      label: 'gap(value)',
-      parameters: [{ label: 'value', documentation: 'Gap/rest value' }],
-    }],
-  },
-  {
-    name: 'gat',
-    detail: 'Gate',
-    documentation: 'Shorthand for gate.',
-    signatures: [{
-      label: 'gat(value)',
-      parameters: [{ label: 'value', documentation: 'Gate value' }],
-    }],
-  },
-  {
-    name: 'gt',
-    detail: 'Greater than',
-    documentation: 'Shorthand for greater than.',
-    signatures: [{
-      label: 'gt(value)',
-      parameters: [{ label: 'value', documentation: 'Greater than value' }],
-    }],
-  },
-  {
-    name: 'gte',
-    detail: 'Greater than or equal',
-    documentation: 'Shorthand for greater than or equal.',
-    signatures: [{
-      label: 'gte(value)',
-      parameters: [{ label: 'value', documentation: 'Greater than or equal value' }],
-    }],
-  },
-  {
-    name: 'h',
-    detail: 'Harmonic',
-    documentation: 'Shorthand for harmonic.',
-    signatures: [{
-      label: 'h(value)',
-      parameters: [{ label: 'value', documentation: 'Harmonic value' }],
-    }],
-  },
-  {
-    name: 'hp',
-    detail: 'Highpass filter',
-    documentation: 'Shorthand for highpass filter.',
-    signatures: [{
-      label: 'hp(value)',
-      parameters: [{ label: 'value', documentation: 'Highpass filter value' }],
-    }],
-  },
-  {
-    name: 'hpa',
-    detail: 'Highpass attack',
-    documentation: 'Shorthand for highpass attack.',
-    signatures: [{
-      label: 'hpa(value)',
-      parameters: [{ label: 'value', documentation: 'Highpass attack value' }],
-    }],
-  },
-  {
-    name: 'hpd',
-    detail: 'Highpass decay',
-    documentation: 'Shorthand for highpass decay.',
-    signatures: [{
-      label: 'hpd(value)',
-      parameters: [{ label: 'value', documentation: 'Highpass decay value' }],
-    }],
-  },
-  {
-    name: 'hpe',
-    detail: 'Highpass env',
-    documentation: 'Shorthand for highpass env.',
-    signatures: [{
-      label: 'hpe(value)',
-      parameters: [{ label: 'value', documentation: 'Highpass env value' }],
-    }],
-  },
-  {
-    name: 'hpr',
-    detail: 'Highpass release',
-    documentation: 'Shorthand for highpass release.',
-    signatures: [{
-      label: 'hpr(value)',
-      parameters: [{ label: 'value', documentation: 'Highpass release value' }],
-    }],
-  },
-  {
-    name: 'hps',
-    detail: 'Highpass sustain',
-    documentation: 'Shorthand for highpass sustain.',
-    signatures: [{
-      label: 'hps(value)',
-      parameters: [{ label: 'value', documentation: 'Highpass sustain value' }],
-    }],
-  },
-  {
-    name: 'hsl',
-    detail: 'HSL color',
-    documentation: 'Shorthand for HSL color.',
-    signatures: [{
-      label: 'hsl(value)',
-      parameters: [{ label: 'value', documentation: 'HSL color value' }],
-    }],
-  },
-  {
-    name: 'id',
-    detail: 'Identity function',
-    documentation: 'Returns its input unchanged. Functional programming utility.',
-    signatures: [{
-      label: 'id(value)',
-      parameters: [{ label: 'value', documentation: 'Value to return' }],
-    }],
-  },
-  {
-    name: 'inv',
-    detail: 'Invert',
-    documentation: 'Shorthand for invert.',
-    signatures: [{
-      label: 'inv(value)',
-      parameters: [{ label: 'value', documentation: 'Invert value' }],
-    }],
-  },
-  {
-    name: 'ir',
-    detail: 'Impulse response',
-    documentation: 'Shorthand for impulse response.',
-    signatures: [{
-      label: 'ir(value)',
-      parameters: [{ label: 'value', documentation: 'Impulse response value' }],
-    }],
-  },
-  {
-    name: 'lfo',
-    detail: 'Low frequency oscillator',
-    documentation: 'Shorthand for low frequency oscillator.',
-    signatures: [{
-      label: 'lfo(value)',
-      parameters: [{ label: 'value', documentation: 'Low frequency oscillator value' }],
-    }],
-  },
-  {
-    name: 'lp',
-    detail: 'Lowpass filter',
-    documentation: 'Shorthand for lowpass filter.',
-    signatures: [{
-      label: 'lp(value)',
-      parameters: [{ label: 'value', documentation: 'Lowpass filter value' }],
-    }],
-  },
-  {
-    name: 'lpa',
-    detail: 'Lowpass attack',
-    documentation: 'Shorthand for lowpass attack.',
-    signatures: [{
-      label: 'lpa(value)',
-      parameters: [{ label: 'value', documentation: 'Lowpass attack value' }],
-    }],
-  },
-  {
-    name: 'lpd',
-    detail: 'Lowpass decay',
-    documentation: 'Shorthand for lowpass decay.',
-    signatures: [{
-      label: 'lpd(value)',
-      parameters: [{ label: 'value', documentation: 'Lowpass decay value' }],
-    }],
-  },
-  {
-    name: 'lpe',
-    detail: 'Lowpass env',
-    documentation: 'Shorthand for lowpass env.',
-    signatures: [{
-      label: 'lpe(value)',
-      parameters: [{ label: 'value', documentation: 'Lowpass env value' }],
-    }],
-  },
-  {
-    name: 'lpr',
-    detail: 'Lowpass release',
-    documentation: 'Shorthand for lowpass release.',
-    signatures: [{
-      label: 'lpr(value)',
-      parameters: [{ label: 'value', documentation: 'Lowpass release value' }],
-    }],
-  },
-  {
-    name: 'lps',
-    detail: 'Lowpass sustain',
-    documentation: 'Shorthand for lowpass sustain.',
-    signatures: [{
-      label: 'lps(value)',
-      parameters: [{ label: 'value', documentation: 'Lowpass sustain value' }],
-    }],
-  },
-  {
-    name: 'lt',
-    detail: 'Less than',
-    documentation: 'Shorthand for less than.',
-    signatures: [{
-      label: 'lt(value)',
-      parameters: [{ label: 'value', documentation: 'Less than value' }],
-    }],
-  },
-  {
-    name: 'lte',
-    detail: 'Less than or equal',
-    documentation: 'Shorthand for less than or equal.',
-    signatures: [{
-      label: 'lte(value)',
-      parameters: [{ label: 'value', documentation: 'Less than or equal value' }],
-    }],
-  },
-  {
-    name: 'm',
-    detail: 'Mode/midi',
-    documentation: 'Shorthand for mode/midi.',
-    signatures: [{
-      label: 'm(value)',
-      parameters: [{ label: 'value', documentation: 'Mode/midi value' }],
-    }],
-  },
-  {
-    name: 'mod',
-    detail: 'Modulation',
-    documentation: 'Shorthand for modulation.',
-    signatures: [{
-      label: 'mod(value)',
-      parameters: [{ label: 'value', documentation: 'Modulation value' }],
-    }],
-  },
-  {
-    name: 'ne',
-    detail: 'Not equal',
-    documentation: 'Shorthand for not equal.',
-    signatures: [{
-      label: 'ne(value)',
-      parameters: [{ label: 'value', documentation: 'Not equal value' }],
-    }],
-  },
-  {
-    name: 'net',
-    detail: 'Network',
-    documentation: 'Shorthand for network.',
-    signatures: [{
-      label: 'net(value)',
-      parameters: [{ label: 'value', documentation: 'Network value' }],
-    }],
-  },
-  {
-    name: 'or',
-    detail: 'Bitwise OR',
-    documentation: 'Shorthand for bitwise OR.',
-    signatures: [{
-      label: 'or(value)',
-      parameters: [{ label: 'value', documentation: 'Bitwise OR value' }],
-    }],
-  },
-  {
-    name: 'ph',
-    detail: 'Phase',
-    documentation: 'Shorthand for phase.',
-    signatures: [{
-      label: 'ph(value)',
-      parameters: [{ label: 'value', documentation: 'Phase value' }],
-    }],
-  },
-  {
-    name: 'phc',
-    detail: 'Phaser center',
-    documentation: 'Shorthand for phaser center.',
-    signatures: [{
-      label: 'phc(value)',
-      parameters: [{ label: 'value', documentation: 'Phaser center value' }],
-    }],
-  },
-  {
-    name: 'phd',
-    detail: 'Phaser depth',
-    documentation: 'Shorthand for phaser depth.',
-    signatures: [{
-      label: 'phd(value)',
-      parameters: [{ label: 'value', documentation: 'Phaser depth value' }],
-    }],
-  },
-  {
-    name: 'phs',
-    detail: 'Phaser sweep',
-    documentation: 'Shorthand for phaser sweep.',
-    signatures: [{
-      label: 'phs(value)',
-      parameters: [{ label: 'value', documentation: 'Phaser sweep value' }],
-    }],
-  },
-  {
-    name: 'pm',
-    detail: 'Phase modulation',
-    documentation: 'Shorthand for phase modulation.',
-    signatures: [{
-      label: 'pm(value)',
-      parameters: [{ label: 'value', documentation: 'Phase modulation value' }],
-    }],
-  },
-  {
-    name: 'pow',
-    detail: 'Power',
-    documentation: 'Shorthand for power.',
-    signatures: [{
-      label: 'pow(value)',
-      parameters: [{ label: 'value', documentation: 'Power value' }],
-    }],
-  },
-  {
-    name: 'pr',
-    detail: 'Pattern reference',
-    documentation: 'Shorthand for pattern reference.',
-    signatures: [{
-      label: 'pr(value)',
-      parameters: [{ label: 'value', documentation: 'Pattern reference value' }],
-    }],
-  },
-  {
-    name: 'ref',
-    detail: 'Reference',
-    documentation: 'Shorthand for reference.',
-    signatures: [{
-      label: 'ref(value)',
-      parameters: [{ label: 'value', documentation: 'Reference value' }],
-    }],
-  },
-  {
-    name: 'rel',
-    detail: 'Release',
-    documentation: 'Shorthand for release.',
-    signatures: [{
-      label: 'rel(value)',
-      parameters: [{ label: 'value', documentation: 'Release value' }],
-    }],
-  },
-  {
-    name: 'rib',
-    detail: 'Ribbon controller',
-    documentation: 'Shorthand for ribbon controller.',
-    signatures: [{
-      label: 'rib(value)',
-      parameters: [{ label: 'value', documentation: 'Ribbon controller value' }],
-    }],
-  },
-  {
-    name: 'rlp',
-    detail: 'Resonant lowpass',
-    documentation: 'Shorthand for resonant lowpass.',
-    signatures: [{
-      label: 'rlp(value)',
-      parameters: [{ label: 'value', documentation: 'Resonant lowpass value' }],
-    }],
-  },
-  {
-    name: 'seg',
-    detail: 'Segment',
-    documentation: 'Shorthand for segment.',
-    signatures: [{
-      label: 'seg(value)',
-      parameters: [{ label: 'value', documentation: 'Segment value' }],
-    }],
-  },
-  {
-    name: 'src',
-    detail: 'Source',
-    documentation: 'Shorthand for source.',
-    signatures: [{
-      label: 'src(value)',
-      parameters: [{ label: 'value', documentation: 'Source value' }],
-    }],
-  },
-  {
-    name: 'sus',
-    detail: 'Sustain',
-    documentation: 'Shorthand for sustain.',
-    signatures: [{
-      label: 'sus(value)',
-      parameters: [{ label: 'value', documentation: 'Sustain value' }],
-    }],
-  },
-  {
-    name: 'sz',
-    detail: 'Size',
-    documentation: 'Shorthand for size.',
-    signatures: [{
-      label: 'sz(value)',
-      parameters: [{ label: 'value', documentation: 'Size value' }],
-    }],
-  },
-  {
-    name: 'uid',
-    detail: 'Unique id',
-    documentation: 'Shorthand for unique id.',
-    signatures: [{
-      label: 'uid(value)',
-      parameters: [{ label: 'value', documentation: 'Unique id value' }],
-    }],
-  },
-  {
-    name: 'v',
-    detail: 'Velocity/value',
-    documentation: 'Shorthand for velocity/value.',
-    signatures: [{
-      label: 'v(value)',
-      parameters: [{ label: 'value', documentation: 'Velocity/value value' }],
-    }],
-  },
-  {
-    name: 'val',
-    detail: 'Value',
-    documentation: 'Shorthand for value.',
-    signatures: [{
-      label: 'val(value)',
-      parameters: [{ label: 'value', documentation: 'Value value' }],
-    }],
-  },
-  {
-    name: 'zip',
-    detail: 'Zip steps together',
-    documentation: 'Zips together the steps of provided patterns. Creates a dense cycle. Use pace() to control playback speed. Experimental.',
-    signatures: [{
-      label: 'zip(...pats)',
-      parameters: [],
-    }],
-  },
-
-  // === EFFECTS ===
-  {
-    name: 'compose',
-    detail: 'Compose functions',
-    documentation: 'Composes functions right-to-left. Functional programming utility.',
-    signatures: [{
-      label: 'compose(...fns)',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'compressSpan',
-    detail: 'Compress time span',
-    documentation: 'Compress time span.',
-    signatures: [{
-      label: 'compressSpan(value)',
-      parameters: [{ label: 'value', documentation: 'Effect parameter value' }],
-    }],
-  },
-  {
-    name: 'compressorAttack',
-    detail: 'Compressor attack time',
-    documentation: 'Compressor attack time.',
-    signatures: [{
-      label: 'compressorAttack(value)',
-      parameters: [{ label: 'value', documentation: 'Effect parameter value' }],
-    }],
-  },
-  {
-    name: 'compressorKnee',
-    detail: 'Compressor knee',
-    documentation: 'Compressor knee.',
-    signatures: [{
-      label: 'compressorKnee(value)',
-      parameters: [{ label: 'value', documentation: 'Effect parameter value' }],
-    }],
-  },
-  {
-    name: 'compressorRatio',
-    detail: 'Compressor ratio',
-    documentation: 'Compressor ratio.',
-    signatures: [{
-      label: 'compressorRatio(value)',
-      parameters: [{ label: 'value', documentation: 'Effect parameter value' }],
-    }],
-  },
-  {
-    name: 'compressorRelease',
-    detail: 'Compressor release time',
-    documentation: 'Compressor release time.',
-    signatures: [{
-      label: 'compressorRelease(value)',
-      parameters: [{ label: 'value', documentation: 'Effect parameter value' }],
-    }],
-  },
-  {
-    name: 'compressspan',
-    detail: 'Compress time span',
-    documentation: 'Compress time span.',
-    signatures: [{
-      label: 'compressspan(value)',
-      parameters: [{ label: 'value', documentation: 'Effect parameter value' }],
-    }],
-  },
-  {
-    name: 'delayfb',
-    detail: 'Delay feedback',
-    documentation: 'Delay feedback.',
-    signatures: [{
-      label: 'delayfb(value)',
-      parameters: [{ label: 'value', documentation: 'Effect parameter value' }],
-    }],
-  },
-  {
-    name: 'delayt',
-    detail: 'Delay time',
-    documentation: 'Delay time.',
-    signatures: [{
-      label: 'delayt(value)',
-      parameters: [{ label: 'value', documentation: 'Effect parameter value' }],
-    }],
-  },
-  {
-    name: 'dist',
-    detail: 'Distortion effect',
-    documentation: 'Distortion effect.',
-    signatures: [{
-      label: 'dist(value)',
-      parameters: [{ label: 'value', documentation: 'Effect parameter value' }],
-    }],
-  },
-  {
-    name: 'duck',
-    detail: 'Ducking/sidechain compression',
-    documentation: 'Ducking/sidechain compression.',
-    signatures: [{
-      label: 'duck(value)',
-      parameters: [{ label: 'value', documentation: 'Effect parameter value' }],
-    }],
-  },
-  {
-    name: 'freeze',
-    detail: 'Freeze/granular freeze effect',
-    documentation: 'Freeze/granular freeze effect.',
-    signatures: [{
-      label: 'freeze(value)',
-      parameters: [{ label: 'value', documentation: 'Effect parameter value' }],
-    }],
-  },
-  {
-    name: 'fshift',
-    detail: 'Frequency shift',
-    documentation: 'Frequency shift.',
-    signatures: [{
-      label: 'fshift(value)',
-      parameters: [{ label: 'value', documentation: 'Effect parameter value' }],
-    }],
-  },
-  {
-    name: 'fshiftnote',
-    detail: 'Frequency shift by note',
-    documentation: 'Frequency shift by note.',
-    signatures: [{
-      label: 'fshiftnote(value)',
-      parameters: [{ label: 'value', documentation: 'Effect parameter value' }],
-    }],
-  },
-  {
-    name: 'fshiftphase',
-    detail: 'Frequency shift phase',
-    documentation: 'Frequency shift phase.',
-    signatures: [{
-      label: 'fshiftphase(value)',
-      parameters: [{ label: 'value', documentation: 'Effect parameter value' }],
-    }],
-  },
-  {
-    name: 'morph',
-    detail: 'Morph between patterns',
-    documentation: 'Morph between patterns.',
-    signatures: [{
-      label: 'morph(value)',
-      parameters: [{ label: 'value', documentation: 'Effect parameter value' }],
-    }],
-  },
-  {
-    name: 'phaserrate',
-    detail: 'Phaser rate',
-    documentation: 'Phaser rate.',
-    signatures: [{
-      label: 'phaserrate(value)',
-      parameters: [{ label: 'value', documentation: 'Effect parameter value' }],
-    }],
-  },
-  {
-    name: 'ring',
-    detail: 'Ring modulation',
-    documentation: 'Ring modulation.',
-    signatures: [{
-      label: 'ring(value)',
-      parameters: [{ label: 'value', documentation: 'Effect parameter value' }],
-    }],
-  },
-  {
-    name: 'ringdf',
-    detail: 'Ring modulator dry/wet',
-    documentation: 'Ring modulator dry/wet.',
-    signatures: [{
-      label: 'ringdf(value)',
-      parameters: [{ label: 'value', documentation: 'Effect parameter value' }],
-    }],
-  },
-  {
-    name: 'ringf',
-    detail: 'Ring modulator frequency',
-    documentation: 'Ring modulator frequency.',
-    signatures: [{
-      label: 'ringf(value)',
-      parameters: [{ label: 'value', documentation: 'Effect parameter value' }],
-    }],
-  },
-
-  // === OTHER STRUDEL FUNCTIONS (minimal documentation) ===
-  {
-    name: 'activeLabel',
-    detail: 'Active label state',
-    documentation: 'Internal function for managing active label state in the pattern system. Used for pattern identification and labeling.',
-    signatures: [{
-      label: 'activeLabel(label)',
-      parameters: [{ label: 'label', documentation: 'Label identifier' }],
-    }],
-  },
-  {
-    name: 'analyze',
-    detail: 'Audio analysis',
-    documentation: 'Performs audio analysis (FFT) on the pattern.',
-    signatures: [{
-      label: 'analyze(options)',
-      parameters: [{ label: 'options', documentation: 'Analysis options' }],
-    }],
-  },
-  {
-    name: 'applyN',
-    detail: 'Apply function N times',
-    documentation: 'Applies a function to a pattern N times. Useful for building up transformations iteratively.',
-    signatures: [{
-      label: 'applyN(n, fn)',
-      parameters: [
-        { label: 'n', documentation: 'Number of times to apply' },
-        { label: 'fn', documentation: 'Function to apply' },
-      ],
-    }],
-  },
-  {
-    name: 'arpWith',
-    detail: 'Arpeggiate with function',
-    documentation: 'Selects indices in stacked notes using a custom function. Experimental.',
-    signatures: [{
-      label: 'arpWith(fn)',
-      parameters: [{ label: 'fn', documentation: 'Function that receives haps array and returns selected hap(s)' }],
-    }],
-  },
-  {
-    name: 'backgroundImage',
-    detail: 'Background image',
-    documentation: 'Sets a background image for visualization.',
-    signatures: [{
-      label: 'backgroundImage(url)',
-      parameters: [{ label: 'url', documentation: 'Image URL' }],
-    }],
-  },
-  {
-    name: 'band',
-    detail: 'Bitwise AND',
-    documentation: 'Bitwise AND operation on pattern values. Combines two patterns using binary AND.',
-    signatures: [{
-      label: 'band(pattern)',
-      parameters: [{ label: 'pattern', documentation: 'Pattern to AND with' }],
-    }],
-  },
-  {
-    name: 'bandf',
-    detail: 'Synonym for bpf',
-    documentation: 'Bandpass filter center frequency. Synonym for bpf.',
-    signatures: [{
-      label: 'bandf(frequency)',
-      parameters: [{ label: 'frequency', documentation: 'Center frequency in Hz' }],
-    }],
-  },
-  {
-    name: 'bandq',
-    detail: 'Synonym for bpq',
-    documentation: 'Bandpass filter Q-factor (resonance). Synonym for bpq.',
-    signatures: [{
-      label: 'bandq(q)',
-      parameters: [{ label: 'q', documentation: 'Q-factor value' }],
-    }],
-  },
-  {
-    name: 'base64ToUnicode',
-    detail: 'Decode base64 to unicode (internal)',
-    documentation: 'Internal utility function. Decodes a base64 string to unicode text. Used for code sharing/compression.',
-    signatures: [{
-      label: 'base64ToUnicode(base64)',
-      parameters: [{ label: 'base64', documentation: 'Base64 encoded string' }],
-    }],
-  },
-  {
-    name: 'bbexpr',
-    detail: 'Bytebeat expression',
-    documentation: 'Alias for byteBeatExpression - sets the bytebeat expression formula for audio synthesis.',
-    signatures: [{
-      label: 'bbexpr(expression)',
-      parameters: [{ label: 'expression', documentation: 'Bytebeat expression string, e.g. "t*(t>>8|t>>9)&46&t>>8"' }],
-    }],
-  },
-  {
-    name: 'bbst',
-    detail: 'Bytebeat start time',
-    documentation: 'Alias for byteBeatStartTime - sets the start time offset for bytebeat synthesis.',
-    signatures: [{
-      label: 'bbst(time)',
-      parameters: [{ label: 'time', documentation: 'Start time offset' }],
-    }],
-  },
-  {
-    name: 'berlinWith',
-    detail: 'Berlin school sequencer',
-    documentation: 'Berlin school style sequencer with custom function. Creates evolving patterns typical of Berlin school electronic music.',
-    signatures: [{
-      label: 'berlinWith(fn, pattern)',
-      parameters: [
-        { label: 'fn', documentation: 'Function to apply' },
-        { label: 'pattern', documentation: 'Base pattern' },
-      ],
-    }],
-  },
-  {
-    name: 'bind',
-    detail: 'Monadic bind',
-    documentation: 'Functional programming bind/flatMap operation. Applies a function that returns a pattern to each value and flattens the result.',
-    signatures: [{
-      label: 'bind(fn)',
-      parameters: [{ label: 'fn', documentation: 'Function that takes a value and returns a pattern' }],
-    }],
-  },
-  {
-    name: 'binshift',
-    detail: 'Binary shift',
-    documentation: 'Binary shift operation on pattern values.',
-    signatures: [{
-      label: 'binshift(amount)',
-      parameters: [{ label: 'amount', documentation: 'Number of bits to shift' }],
-    }],
-  },
-  {
-    name: 'bjork',
-    detail: 'Bjorklund algorithm',
-    documentation: 'Creates Euclidean patterns using Bjorklund algorithm.',
-    signatures: [{
-      label: 'bjork(pulses, steps)',
-      parameters: [
-        { label: 'pulses', documentation: 'Number of pulses' },
-        { label: 'steps', documentation: 'Number of steps' }
-      ],
-    }],
-  },
-  {
-    name: 'blshift',
-    detail: 'Binary left shift',
-    documentation: 'Binary left shift operation on pattern values.',
-    signatures: [{
-      label: 'blshift(amount)',
-      parameters: [{ label: 'amount', documentation: 'Number of bits to shift left' }],
-    }],
-  },
-  {
-    name: 'brak',
-    detail: 'Breakbeat pattern',
-    documentation: 'Squashes the pattern to fit half a cycle, then plays it off-beat with the other half.',
-    signatures: [{
-      label: 'brak(pat)',
-      parameters: [{ label: 'pat', documentation: 'Pattern to apply breakbeat effect to' }],
-    }],
-  },
-  {
-    name: 'brshift',
-    detail: 'Binary right shift',
-    documentation: 'Binary right shift operation on pattern values.',
-    signatures: [{
-      label: 'brshift(amount)',
-      parameters: [{ label: 'amount', documentation: 'Number of bits to shift right' }],
-    }],
-  },
-  {
-    name: 'bxor',
-    detail: 'Bitwise XOR',
-    documentation: 'Bitwise XOR (exclusive or) operation on pattern values.',
-    signatures: [{
-      label: 'bxor(pattern)',
-      parameters: [{ label: 'pattern', documentation: 'Pattern to XOR with' }],
-    }],
-  },
-  {
-    name: 'bypass',
-    detail: 'Bypass effects',
-    documentation: 'Bypasses audio effects when true.',
-    signatures: [{
-      label: 'bypass(toggle)',
-      parameters: [{ label: 'toggle', documentation: 'Bypass on/off' }],
-    }],
-  },
-  {
-    name: 'calculateSteps',
-    detail: 'Calculate pattern steps (internal)',
-    documentation: 'Internal utility function. Calculates the number of steps in a pattern. Used for pattern analysis and visualization.',
-    signatures: [{
-      label: 'calculateSteps(pattern)',
-      parameters: [{ label: 'pattern', documentation: 'Pattern to analyze' }],
-    }],
-  },
-  {
-    name: 'channel',
-    detail: 'MIDI channel',
-    documentation: 'Sets the MIDI channel for output (1-16).',
-    signatures: [{
-      label: 'channel(n)',
-      parameters: [{ label: 'n', documentation: 'MIDI channel number (1-16)' }],
-    }],
-  },
-  {
-    name: 'chooseIn',
-    detail: 'Choose by input index',
-    documentation: 'Chooses from values based on input pattern.',
-    signatures: [{
-      label: 'chooseIn(pat, ...xs)',
-      parameters: [{ label: 'pat', documentation: 'Pattern of indices' }],
-    }],
-  },
-  {
-    name: 'chooseInWith',
-    detail: 'Choose in with function',
-    documentation: 'Like chooseIn, but uses a custom function.',
-    signatures: [{
-      label: 'chooseInWith(fn, ...xs)',
-      parameters: [{ label: 'fn', documentation: 'Function to determine selection' }],
-    }],
-  },
-  {
-    name: 'chooseOut',
-    detail: 'Choose from output',
-    documentation: 'Outputs a randomly chosen value from the list.',
-    signatures: [{
-      label: 'chooseOut(...xs)',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'chooseWith',
-    detail: 'Choose with function',
-    documentation: 'Like choose, but uses a custom function to pick from values.',
-    signatures: [{
-      label: 'chooseWith(fn, ...xs)',
-      parameters: [{ label: 'fn', documentation: 'Function to determine selection' }],
-    }],
-  },
-  {
-    name: 'chunkBack',
-    detail: 'Chunk backwards',
-    documentation: 'Like chunk, but cycles through the parts in reverse order. Known as chunk\' in TidalCycles.',
-    signatures: [{
-      label: 'chunkBack(n, fn)',
-      parameters: [
-        { label: 'n', documentation: 'Number of parts to divide pattern into' },
-        { label: 'fn', documentation: 'Function to apply to each part' }
-      ],
-    }],
-  },
-  {
-    name: 'chunkback',
-    detail: 'Chunk backwards',
-    documentation: 'Alias for chunkBack. Like chunk, but cycles through the parts in reverse order.',
-    signatures: [{
-      label: 'chunkback(n, fn)',
-      parameters: [
-        { label: 'n', documentation: 'Number of parts to divide pattern into' },
-        { label: 'fn', documentation: 'Function to apply to each part' }
-      ],
-    }],
-  },
-  {
-    name: 'clamp',
-    detail: 'Clamp value',
-    documentation: 'Clamps a value between min and max. Standard JavaScript utility.',
-    signatures: [{
-      label: 'clamp(value, min, max)',
-      parameters: [{ label: 'value', documentation: 'Value to clamp' }, { label: 'min', documentation: 'Minimum value' }, { label: 'max', documentation: 'Maximum value' }],
-    }],
-  },
-  {
-    name: 'code2hash',
-    detail: 'Code to URL hash (internal)',
-    documentation: 'Internal utility function. Converts Strudel code to a compressed URL hash for sharing. Used in the web REPL.',
-    signatures: [{
-      label: 'code2hash(code)',
-      parameters: [{ label: 'code', documentation: 'Strudel code to compress' }],
-    }],
-  },
-  {
-    name: 'comb',
-    detail: 'Comb filter',
-    documentation: 'Applies a comb filter effect.',
-    signatures: [{
-      label: 'comb(freq)',
-      parameters: [{ label: 'freq', documentation: 'Comb filter frequency' }],
-    }],
-  },
-  {
-    name: 'constant',
-    detail: 'Constant function',
-    documentation: 'Returns a function that always returns the given value. Functional programming utility.',
-    signatures: [{
-      label: 'constant(value)',
-      parameters: [{ label: 'value', documentation: 'Value to always return' }],
-    }],
-  },
-  {
-    name: 'contract',
-    detail: 'Contract step size',
-    documentation: 'Contracts the step size of the pattern by the given factor. Experimental stepwise function. See also expand.',
-    signatures: [{
-      label: 'contract(factor)',
-      parameters: [{ label: 'factor', documentation: 'Factor to contract steps by' }],
-    }],
-  },
-  {
-    name: 'ctlNum',
-    detail: 'MIDI control number',
-    documentation: 'Sets the MIDI control change number.',
-    signatures: [{
-      label: 'ctlNum(n)',
-      parameters: [{ label: 'n', documentation: 'Control number (0-127)' }],
-    }],
-  },
-  {
-    name: 'ctranspose',
-    detail: 'Chromatic transpose',
-    documentation: 'Transposes note chromatically (in semitones).',
-    signatures: [{
-      label: 'ctranspose(semitones)',
-      parameters: [{ label: 'semitones', documentation: 'Number of semitones to transpose' }],
-    }],
-  },
-  {
-    name: 'curve',
-    detail: 'Curve modifier',
-    documentation: 'Applies a curve transformation to values.',
-    signatures: [{
-      label: 'curve(exponent)',
-      parameters: [{ label: 'exponent', documentation: 'Curve exponent' }],
-    }],
-  },
-  {
-    name: 'cutoff',
-    detail: 'Synonym for lpf',
-    documentation: 'Lowpass filter cutoff frequency. Synonym for lpf.',
-    signatures: [{
-      label: 'cutoff(frequency)',
-      parameters: [{ label: 'frequency', documentation: 'Cutoff frequency in Hz (0-20000)' }],
-    }],
-  },
-  {
-    name: 'cycleToSeconds',
-    detail: 'Cycles to seconds',
-    documentation: 'Converts cycle time to seconds based on current tempo.',
-    signatures: [{
-      label: 'cycleToSeconds(cycles)',
-      parameters: [{ label: 'cycles', documentation: 'Number of cycles' }],
-    }],
-  },
-  {
-    name: 'degradeByWith',
-    detail: 'Degrade with custom random',
-    documentation: 'Like degradeBy but uses a custom random function.',
-    signatures: [{
-      label: 'degradeByWith(fn, amount)',
-      parameters: [
-        { label: 'fn', documentation: 'Random function' },
-        { label: 'amount', documentation: 'Probability of removal (0-1)' }
-      ],
-    }],
-  },
-  {
-    name: 'degree',
-    detail: 'Scale degree',
-    documentation: 'Selects a scale degree from the current scale.',
-    signatures: [{
-      label: 'degree(n)',
-      parameters: [{ label: 'n', documentation: 'Scale degree (1-based)' }],
-    }],
-  },
-  {
-    name: 'deltaSlide',
-    detail: 'Delta slide',
-    documentation: 'Adds pitch slide delta over time.',
-    signatures: [{
-      label: 'deltaSlide(amount)',
-      parameters: [{ label: 'amount', documentation: 'Slide delta amount' }],
-    }],
-  },
-  {
-    name: 'dict',
-    detail: 'Voicing dictionary',
-    documentation: 'Sets the voicing dictionary to use for chord voicings.',
-    signatures: [{
-      label: 'dict(name)',
-      parameters: [{ label: 'name', documentation: 'Dictionary name (e.g., "lefthand", "ireal")' }],
-    }],
-  },
-  {
-    name: 'dictionary',
-    detail: 'Create sample dictionary',
-    documentation: 'Creates a dictionary mapping names to sample banks or sounds. Used for organizing and accessing samples.',
-    signatures: [{
-      label: 'dictionary(mapping)',
-      parameters: [{ label: 'mapping', documentation: 'Object mapping names to sample paths/banks' }],
-    }],
-  },
-  {
-    name: 'drawLine',
-    detail: 'Draw line visualization',
-    documentation: 'Draws a line visualization of the pattern.',
-    signatures: [{
-      label: 'drawLine(options)',
-      parameters: [{ label: 'options', documentation: 'Drawing options' }],
-    }],
-  },
-  {
-    name: 'drop',
-    detail: 'Drop steps',
-    documentation: 'Drops the given number of steps from a pattern. Positive drops from start, negative drops from end. Experimental stepwise function.',
-    signatures: [{
-      label: 'drop(n)',
-      parameters: [{ label: 'n', documentation: 'Number of steps to drop (positive=start, negative=end)' }],
-    }],
-  },
-  {
-    name: 'eish',
-    detail: 'Equal interval scale halftone',
-    documentation: 'Xeno-harmonic tuning function. Sets the equal interval scale halftone/semitone size. Used for microtonal and alternative tuning systems.',
-    signatures: [{
-      label: 'eish(semitoneRatio)',
-      parameters: [{ label: 'semitoneRatio', documentation: 'Ratio for each semitone step' }],
-    }],
-  },
-  {
-    name: 'enhance',
-    detail: 'Audio enhancer',
-    documentation: 'Enhances audio clarity/presence.',
-    signatures: [{
-      label: 'enhance(amount)',
-      parameters: [{ label: 'amount', documentation: 'Enhancement amount' }],
-    }],
-  },
-  {
-    name: 'euclidRot',
-    detail: 'Euclidean rhythm with rotation',
-    documentation: 'Like euclid, but has an additional parameter for rotating the resulting sequence.',
-    signatures: [{
-      label: 'euclidRot(pulses, steps, rotation)',
-      parameters: [
-        { label: 'pulses', documentation: 'Number of onsets/beats' },
-        { label: 'steps', documentation: 'Number of steps to fill' },
-        { label: 'rotation', documentation: 'Offset in steps' }
-      ],
-    }],
-  },
-  {
-    name: 'euclidrot',
-    detail: 'Euclidean rhythm with rotation',
-    documentation: 'Alias for euclidRot. Like euclid with rotation.',
-    signatures: [{
-      label: 'euclidrot(pulses, steps, rotation)',
-      parameters: [
-        { label: 'pulses', documentation: 'Number of onsets/beats' },
-        { label: 'steps', documentation: 'Number of steps to fill' },
-        { label: 'rotation', documentation: 'Offset in steps' }
-      ],
-    }],
-  },
-  {
-    name: 'expand',
-    detail: 'Expand step size',
-    documentation: 'Expands the step size of the pattern by the given factor. Experimental stepwise function.',
-    signatures: [{
-      label: 'expand(factor)',
-      parameters: [{ label: 'factor', documentation: 'Factor to expand steps by' }],
-    }],
-  },
-  {
-    name: 'expression',
-    detail: 'Mathematical expression',
-    documentation: 'Evaluates a mathematical expression as a pattern. Can be used for dynamic value generation.',
-    signatures: [{
-      label: 'expression(expr)',
-      parameters: [{ label: 'expr', documentation: 'Mathematical expression string' }],
-    }],
-  },
-  {
-    name: 'extend',
-    detail: 'Extend pattern',
-    documentation: 'Like fast but also increases step count accordingly. Stepwise alternative to fast.',
-    signatures: [{
-      label: 'extend(factor)',
-      parameters: [{ label: 'factor', documentation: 'Factor to extend by' }],
-    }],
-  },
-  {
-    name: 'fadeInTime',
-    detail: 'Fade in time',
-    documentation: 'Fade in time for the sound in seconds.',
-    signatures: [{
-      label: 'fadeInTime(seconds)',
-      parameters: [{ label: 'seconds', documentation: 'Fade in duration' }],
-    }],
-  },
-  {
-    name: 'fadeOutTime',
-    detail: 'Fade out time',
-    documentation: 'Fade out time for the sound in seconds.',
-    signatures: [{
-      label: 'fadeOutTime(seconds)',
-      parameters: [{ label: 'seconds', documentation: 'Fade out duration' }],
-    }],
-  },
-  {
-    name: 'fadeTime',
-    detail: 'Fade time',
-    documentation: 'Sets both fade in and fade out time.',
-    signatures: [{
-      label: 'fadeTime(seconds)',
-      parameters: [{ label: 'seconds', documentation: 'Fade duration' }],
-    }],
-  },
-  {
-    name: 'filter',
-    detail: 'Filter pattern',
-    documentation: 'Filters events in a pattern based on a predicate function.',
-    signatures: [{
-      label: 'filter(fn)',
-      parameters: [{ label: 'fn', documentation: 'Predicate function' }],
-    }],
-  },
-  {
-    name: 'flatten',
-    detail: 'Flatten array',
-    documentation: 'Flattens a nested array by one level. Standard JavaScript utility.',
-    signatures: [{
-      label: 'flatten(array)',
-      parameters: [{ label: 'array', documentation: 'Array to flatten' }],
-    }],
-  },
-  {
-    name: 'fmrelease',
-    detail: 'FM release time',
-    documentation: 'FM synth release time.',
-    signatures: [{
-      label: 'fmrelease(time)',
-      parameters: [{ label: 'time', documentation: 'Release time in seconds' }],
-    }],
-  },
-  {
-    name: 'fmvelocity',
-    detail: 'FM velocity sensitivity',
-    documentation: 'FM synth velocity sensitivity.',
-    signatures: [{
-      label: 'fmvelocity(amount)',
-      parameters: [{ label: 'amount', documentation: 'Velocity sensitivity' }],
-    }],
-  },
-  {
-    name: 'focusSpan',
-    detail: 'Focus on time span',
-    documentation: 'Focuses the pattern query on a specific time span. Similar to zoom but works with absolute time spans rather than factors.',
-    signatures: [{
-      label: 'focusSpan(begin, end)',
-      parameters: [
-        { label: 'begin', documentation: 'Start time of the span' },
-        { label: 'end', documentation: 'End time of the span' },
-      ],
-    }],
-  },
-  {
-    name: 'focusspan',
-    detail: 'Focus on time span',
-    documentation: 'Alias for focusSpan. Focuses the pattern query on a specific time span.',
-    signatures: [{
-      label: 'focusspan(begin, end)',
-      parameters: [
-        { label: 'begin', documentation: 'Start time of the span' },
-        { label: 'end', documentation: 'End time of the span' },
-      ],
-    }],
-  },
-  {
-    name: 'fractionalArgs',
-    detail: 'Fractional arguments (internal)',
-    documentation: 'Internal function for handling fractional arguments in pattern functions. Parses fractional notation.',
-    signatures: [{
-      label: 'fractionalArgs(args)',
-      parameters: [{ label: 'args', documentation: 'Arguments to parse' }],
-    }],
-  },
-  {
-    name: 'frameRate',
-    detail: 'Frame rate',
-    documentation: 'Sets the visualization frame rate.',
-    signatures: [{
-      label: 'frameRate(fps)',
-      parameters: [{ label: 'fps', documentation: 'Frames per second' }],
-    }],
-  },
-  {
-    name: 'frames',
-    detail: 'Frame count',
-    documentation: 'Sets the number of frames for visualization.',
-    signatures: [{
-      label: 'frames(n)',
-      parameters: [{ label: 'n', documentation: 'Number of frames' }],
-    }],
-  },
-  {
-    name: 'freqToMidi',
-    detail: 'Frequency to MIDI',
-    documentation: 'Converts a frequency in Hz to a MIDI note number.',
-    signatures: [{
-      label: 'freqToMidi(freq)',
-      parameters: [{ label: 'freq', documentation: 'Frequency in Hz' }],
-    }],
-  },
-  {
-    name: 'fromBipolar',
-    detail: 'Convert from bipolar',
-    documentation: 'Converts a bipolar value (-1 to 1) to unipolar (0 to 1).',
-    signatures: [{
-      label: 'fromBipolar(value)',
-      parameters: [{ label: 'value', documentation: 'Bipolar value (-1 to 1)' }],
-    }],
-  },
-  {
-    name: 'func',
-    detail: 'Function wrapper',
-    documentation: 'Wraps a JavaScript function for use in patterns. Allows custom functions to work with the pattern system.',
-    signatures: [{
-      label: 'func(fn)',
-      parameters: [{ label: 'fn', documentation: 'JavaScript function to wrap' }],
-    }],
-  },
-  {
-    name: 'grow',
-    detail: 'Grow pattern progressively',
-    documentation: 'Progressively grows the pattern by n steps until the full pattern is played. Positive grows from start, negative from end. Experimental.',
-    signatures: [{
-      label: 'grow(n)',
-      parameters: [{ label: 'n', documentation: 'Number of steps to grow by each cycle' }],
-    }],
-  },
-  {
-    name: 'harmonic',
-    detail: 'Harmonic series',
-    documentation: 'Adds harmonic overtones to the sound.',
-    signatures: [{
-      label: 'harmonic(n)',
-      parameters: [{ label: 'n', documentation: 'Harmonic number' }],
-    }],
-  },
-  {
-    name: 'hash2code',
-    detail: 'URL hash to code (internal)',
-    documentation: 'Internal utility function. Decompresses a URL hash back to Strudel code. Used in the web REPL.',
-    signatures: [{
-      label: 'hash2code(hash)',
-      parameters: [{ label: 'hash', documentation: 'Compressed URL hash' }],
-    }],
-  },
-  {
-    name: 'hbrick',
-    detail: 'Spectral high brick',
-    documentation: 'SuperDirt spectral effect - brick wall filter for high frequencies. Removes frequencies above the threshold.',
-    signatures: [{
-      label: 'hbrick(threshold)',
-      parameters: [{ label: 'threshold', documentation: 'Frequency threshold (0-1)' }],
-    }],
-  },
-  {
-    name: 'hcutoff',
-    detail: 'Synonym for hpf',
-    documentation: 'Highpass filter cutoff frequency. Synonym for hpf.',
-    signatures: [{
-      label: 'hcutoff(frequency)',
-      parameters: [{ label: 'frequency', documentation: 'Cutoff frequency in Hz (0-20000)' }],
-    }],
-  },
-  {
-    name: 'hours',
-    detail: 'Hours signal',
-    documentation: 'Returns the current time in hours.',
-    signatures: [{
-      label: 'hours',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'hresonance',
-    detail: 'Synonym for hpq',
-    documentation: 'Highpass filter resonance (Q-value). Synonym for hpq.',
-    signatures: [{
-      label: 'hresonance(q)',
-      parameters: [{ label: 'q', documentation: 'Resonance factor (0-50)' }],
-    }],
-  },
-  {
-    name: 'hsla',
-    detail: 'HSLA color',
-    documentation: 'Sets visualization color in HSLA format.',
-    signatures: [{
-      label: 'hsla(h, s, l, a)',
-      parameters: [
-        { label: 'h', documentation: 'Hue (0-360)' },
-        { label: 's', documentation: 'Saturation (0-100)' },
-        { label: 'l', documentation: 'Lightness (0-100)' },
-        { label: 'a', documentation: 'Alpha (0-1)' }
-      ],
-    }],
-  },
-  {
-    name: 'imag',
-    detail: 'Imaginary component',
-    documentation: 'Extracts or sets the imaginary component of complex numbers. Used for spectral/FFT operations.',
-    signatures: [{
-      label: 'imag(value)',
-      parameters: [{ label: 'value', documentation: 'Imaginary component value' }],
-    }],
-  },
-  {
-    name: 'kcutoff',
-    detail: 'Karplus cutoff frequency',
-    documentation: 'Sets the cutoff frequency for Karplus-Strong string synthesis algorithm.',
-    signatures: [{
-      label: 'kcutoff(frequency)',
-      parameters: [{ label: 'frequency', documentation: 'Cutoff frequency in Hz' }],
-    }],
-  },
-  {
-    name: 'keep',
-    detail: 'Keep events',
-    documentation: 'Keeps only events that match the predicate.',
-    signatures: [{
-      label: 'keep(fn)',
-      parameters: [{ label: 'fn', documentation: 'Predicate function' }],
-    }],
-  },
-  {
-    name: 'keepif',
-    detail: 'Keep if condition',
-    documentation: 'Keeps events only when condition is true.',
-    signatures: [{
-      label: 'keepif(condition)',
-      parameters: [{ label: 'condition', documentation: 'Condition pattern' }],
-    }],
-  },
-  {
-    name: 'krush',
-    detail: 'Bit crush effect',
-    documentation: 'Bit-crusher distortion effect. Reduces bit depth.',
-    signatures: [{
-      label: 'krush(amount)',
-      parameters: [{ label: 'amount', documentation: 'Crush amount (higher = more distortion)' }],
-    }],
-  },
-  {
-    name: 'lbrick',
-    detail: 'Spectral low brick',
-    documentation: 'SuperDirt spectral effect - brick wall filter for low frequencies. Removes frequencies below the threshold.',
-    signatures: [{
-      label: 'lbrick(threshold)',
-      parameters: [{ label: 'threshold', documentation: 'Frequency threshold (0-1)' }],
-    }],
-  },
-  {
-    name: 'listRange',
-    detail: 'List range (internal)',
-    documentation: 'Internal utility function for creating a range list.',
-    signatures: [{
-      label: 'listRange(start, end)',
-      parameters: [
-        { label: 'start', documentation: 'Start value' },
-        { label: 'end', documentation: 'End value' },
-      ],
-    }],
-  },
-  {
-    name: 'logger',
-    detail: 'Logger (internal)',
-    documentation: 'Internal logging utility for debugging patterns.',
-    signatures: [{
-      label: 'logger(message)',
-      parameters: [{ label: 'message', documentation: 'Message to log' }],
-    }],
-  },
-  {
-    name: 'loopb',
-    detail: 'Loop begin',
-    documentation: 'Sets the loop begin point for sample playback (0-1).',
-    signatures: [{
-      label: 'loopb(pos)',
-      parameters: [{ label: 'pos', documentation: 'Loop begin position (0-1)' }],
-    }],
-  },
-  {
-    name: 'loope',
-    detail: 'Loop end',
-    documentation: 'Sets the loop end point for sample playback (0-1).',
-    signatures: [{
-      label: 'loope(pos)',
-      parameters: [{ label: 'pos', documentation: 'Loop end position (0-1)' }],
-    }],
-  },
-  {
-    name: 'lsize',
-    detail: 'Leslie size',
-    documentation: 'SuperDirt parameter - controls the size/room of the Leslie speaker effect.',
-    signatures: [{
-      label: 'lsize(size)',
-      parameters: [{ label: 'size', documentation: 'Leslie room size' }],
-    }],
-  },
-  {
-    name: 'mapArgs',
-    detail: 'Map arguments (internal)',
-    documentation: 'Internal utility for mapping function arguments.',
-    signatures: [{
-      label: 'mapArgs(fn, args)',
-      parameters: [
-        { label: 'fn', documentation: 'Mapping function' },
-        { label: 'args', documentation: 'Arguments to map' },
-      ],
-    }],
-  },
-  {
-    name: 'midi2note',
-    detail: 'MIDI to note name',
-    documentation: 'Converts a MIDI note number to a note name (e.g., 60 -> "C4").',
-    signatures: [{
-      label: 'midi2note(midi)',
-      parameters: [{ label: 'midi', documentation: 'MIDI note number (0-127)' }],
-    }],
-  },
-  {
-    name: 'midiToFreq',
-    detail: 'MIDI to frequency',
-    documentation: 'Converts a MIDI note number to frequency in Hz.',
-    signatures: [{
-      label: 'midiToFreq(midi)',
-      parameters: [{ label: 'midi', documentation: 'MIDI note number' }],
-    }],
-  },
-  {
-    name: 'midimap',
-    detail: 'MIDI control mapping',
-    documentation: 'Defines or uses a MIDI control mapping. Maps MIDI CC values to pattern parameters.',
-    signatures: [{
-      label: 'midimap(mapping)',
-      parameters: [{ label: 'mapping', documentation: 'MIDI mapping object or name' }],
-    }],
-  },
-  {
-    name: 'mini',
-    detail: 'Parse mini-notation',
-    documentation: 'Parses a mini-notation string and returns a pattern.',
-    signatures: [{
-      label: 'mini(str)',
-      parameters: [{ label: 'str', documentation: 'Mini-notation string' }],
-    }],
-  },
-  {
-    name: 'mini2ast',
-    detail: 'Mini notation to AST (internal)',
-    documentation: 'Internal parser function. Parses mini notation string into an Abstract Syntax Tree. Used by the mini notation parser.',
-    signatures: [{
-      label: 'mini2ast(miniNotation)',
-      parameters: [{ label: 'miniNotation', documentation: 'Mini notation string to parse' }],
-    }],
-  },
-  {
-    name: 'miniAllStrings',
-    detail: 'Mini notation all strings (internal)',
-    documentation: 'Internal parser function. Extracts all string values from mini notation. Used for parsing and analysis.',
-    signatures: [{
-      label: 'miniAllStrings(miniNotation)',
-      parameters: [{ label: 'miniNotation', documentation: 'Mini notation string' }],
-    }],
-  },
-  {
-    name: 'minify',
-    detail: 'Minify code (internal)',
-    documentation: 'Internal utility function. Minifies/compresses Strudel code by removing whitespace and shortening identifiers.',
-    signatures: [{
-      label: 'minify(code)',
-      parameters: [{ label: 'code', documentation: 'Strudel code to minify' }],
-    }],
-  },
-  {
-    name: 'minutes',
-    detail: 'Minutes signal',
-    documentation: 'Returns the current time in minutes.',
-    signatures: [{
-      label: 'minutes',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'mtranspose',
-    detail: 'Modal transpose',
-    documentation: 'Transposes note within the current scale by scale degrees.',
-    signatures: [{
-      label: 'mtranspose(degrees)',
-      parameters: [{ label: 'degrees', documentation: 'Number of scale degrees to transpose' }],
-    }],
-  },
-  {
-    name: 'noteToMidi',
-    detail: 'Note name to MIDI',
-    documentation: 'Converts a note name to a MIDI note number (e.g., "C4" -> 60).',
-    signatures: [{
-      label: 'noteToMidi(note)',
-      parameters: [{ label: 'note', documentation: 'Note name (e.g., "C4", "A#3")' }],
-    }],
-  },
-  {
-    name: 'numeralArgs',
-    detail: 'Numeral arguments (internal)',
-    documentation: 'Internal function for parsing numeral arguments (Roman numerals, chord numerals) in pattern notation.',
-    signatures: [{
-      label: 'numeralArgs(args)',
-      parameters: [{ label: 'args', documentation: 'Arguments to parse' }],
-    }],
-  },
-  {
-    name: 'octaveR',
-    detail: 'Octave ratio',
-    documentation: 'Xeno-harmonic tuning function. Sets or gets the octave ratio (normally 2:1). Can be changed for non-octave-repeating scales like Bohlen-Pierce (3:1).',
-    signatures: [{
-      label: 'octaveR(ratio)',
-      parameters: [{ label: 'ratio', documentation: 'Frequency ratio for one octave (default: 2)' }],
-    }],
-  },
-  {
-    name: 'octaves',
-    detail: 'Octave range',
-    documentation: 'Sets or constrains the octave range for a pattern. Can be used with voicings or to limit the octave span of notes.',
-    signatures: [{
-      label: 'octaves(range)',
-      parameters: [{ label: 'range', documentation: 'Number of octaves or octave range' }],
-    }],
-  },
-  {
-    name: 'octer',
-    detail: 'Octave effect',
-    documentation: 'Octave effect/harmonizer that adds pitched copies of the sound.',
-    signatures: [{
-      label: 'octer(amount)',
-      parameters: [{ label: 'amount', documentation: 'Effect amount' }],
-    }],
-  },
-  {
-    name: 'octersub',
-    detail: 'Octave sub effect',
-    documentation: 'Sub-octave level for the octer effect.',
-    signatures: [{
-      label: 'octersub(amount)',
-      parameters: [{ label: 'amount', documentation: 'Sub-octave amount' }],
-    }],
-  },
-  {
-    name: 'octersubsub',
-    detail: 'Octave sub-sub effect',
-    documentation: 'Two-octave-down level for the octer effect.',
-    signatures: [{
-      label: 'octersubsub(amount)',
-      parameters: [{ label: 'amount', documentation: 'Sub-sub-octave amount' }],
-    }],
-  },
-  {
-    name: 'offset',
-    detail: 'Time offset',
-    documentation: 'Offsets the pattern in time.',
-    signatures: [{
-      label: 'offset(cycles)',
-      parameters: [{ label: 'cycles', documentation: 'Number of cycles to offset' }],
-    }],
-  },
-  {
-    name: 'overgain',
-    detail: 'Overdrive gain',
-    documentation: 'SuperDirt overdrive effect - controls the gain/drive amount for the overdrive distortion.',
-    signatures: [{
-      label: 'overgain(amount)',
-      parameters: [{ label: 'amount', documentation: 'Drive amount' }],
-    }],
-  },
-  {
-    name: 'overshape',
-    detail: 'Overdrive shape',
-    documentation: 'SuperDirt overdrive effect - controls the waveshaping curve of the overdrive distortion.',
-    signatures: [{
-      label: 'overshape(amount)',
-      parameters: [{ label: 'amount', documentation: 'Shape amount (0-1)' }],
-    }],
-  },
-  {
-    name: 'pace',
-    detail: 'Set steps per cycle',
-    documentation: 'Speeds a pattern up or down to fit the given number of steps per cycle. Experimental stepwise function.',
-    signatures: [{
-      label: 'pace(stepsPerCycle)',
-      parameters: [{ label: 'stepsPerCycle', documentation: 'Number of steps per cycle' }],
-    }],
-  },
-  {
-    name: 'pairs',
-    detail: 'Create key-value pairs',
-    documentation: 'Creates key-value pairs from pattern values. Useful for creating structured data from patterns.',
-    signatures: [{
-      label: 'pairs(pattern)',
-      parameters: [{ label: 'pattern', documentation: 'Pattern to extract pairs from' }],
-    }],
-  },
-  {
-    name: 'panorient',
-    detail: 'Pan orientation',
-    documentation: 'SuperDirt stereo parameter - controls the orientation of the stereo image. Used for multichannel spatialization.',
-    signatures: [{
-      label: 'panorient(value)',
-      parameters: [{ label: 'value', documentation: 'Orientation value' }],
-    }],
-  },
-  {
-    name: 'panspan',
-    detail: 'Pan span',
-    documentation: 'SuperDirt stereo parameter - controls the span/width of the stereo image.',
-    signatures: [{
-      label: 'panspan(value)',
-      parameters: [{ label: 'value', documentation: 'Span value (0-1)' }],
-    }],
-  },
-  {
-    name: 'pansplay',
-    detail: 'Pan splay',
-    documentation: 'SuperDirt stereo parameter - spreads sound across stereo field. Similar to stereo widening.',
-    signatures: [{
-      label: 'pansplay(value)',
-      parameters: [{ label: 'value', documentation: 'Splay amount (0-1)' }],
-    }],
-  },
-  {
-    name: 'panwidth',
-    detail: 'Pan width',
-    documentation: 'SuperDirt stereo parameter - controls the width of the stereo image.',
-    signatures: [{
-      label: 'panwidth(value)',
-      parameters: [{ label: 'value', documentation: 'Width value (0-1)' }],
-    }],
-  },
-  {
-    name: 'partials',
-    detail: 'Partials control',
-    documentation: 'Controls the number of partials/harmonics in synthesis.',
-    signatures: [{
-      label: 'partials(n)',
-      parameters: [{ label: 'n', documentation: 'Number of partials' }],
-    }],
-  },
-  {
-    name: 'patt',
-    detail: 'Synonym for pattack',
-    documentation: 'Pitch envelope attack time in seconds. Synonym for pattack.',
-    signatures: [{
-      label: 'patt(time)',
-      parameters: [{ label: 'time', documentation: 'Attack time in seconds' }],
-    }],
-  },
-  {
-    name: 'patternifyAST',
-    detail: 'Patternify AST (internal)',
-    documentation: 'Internal parser function. Converts an Abstract Syntax Tree into a Strudel pattern. Used by the mini notation parser.',
-    signatures: [{
-      label: 'patternifyAST(ast)',
-      parameters: [{ label: 'ast', documentation: 'Abstract Syntax Tree to convert' }],
-    }],
-  },
-  {
-    name: 'pdec',
-    detail: 'Synonym for pdecay',
-    documentation: 'Pitch envelope decay time in seconds. Synonym for pdecay.',
-    signatures: [{
-      label: 'pdec(time)',
-      parameters: [{ label: 'time', documentation: 'Decay time in seconds' }],
-    }],
-  },
-  {
-    name: 'perlinWith',
-    detail: 'Perlin with seed',
-    documentation: 'Generates Perlin noise with a custom seed function.',
-    signatures: [{
-      label: 'perlinWith(fn)',
-      parameters: [{ label: 'fn', documentation: 'Seed function' }],
-    }],
-  },
-  {
-    name: 'phasdp',
-    detail: 'Synonym for phaserdepth',
-    documentation: 'Phaser effect depth (0-1). Synonym for phaserdepth.',
-    signatures: [{
-      label: 'phasdp(depth)',
-      parameters: [{ label: 'depth', documentation: 'Depth value (0-1)' }],
-    }],
-  },
-  {
-    name: 'pick',
-    detail: 'Pick patterns by index/name',
-    documentation: 'Picks patterns from a list (by index) or lookup table (by name). Maintains structure of original patterns.',
-    signatures: [{
-      label: 'pick(pat, xs)',
-      parameters: [
-        { label: 'pat', documentation: 'Pattern of indices or names' },
-        { label: 'xs', documentation: 'Array or object of patterns to pick from' }
-      ],
-    }],
-  },
-  {
-    name: 'pickReset',
-    detail: 'Pick with reset',
-    documentation: 'Like pick, but resets the chosen pattern when its index is triggered.',
-    signatures: [{
-      label: 'pickReset(pat, xs)',
-      parameters: [
-        { label: 'pat', documentation: 'Pattern of indices' },
-        { label: 'xs', documentation: 'Array or object of patterns to pick from' }
-      ],
-    }],
-  },
-  {
-    name: 'pickSqueeze',
-    detail: 'Alias for inhabit',
-    documentation: 'Alias for inhabit. Picks patterns and squeezes cycles into the target pattern.',
-    signatures: [{
-      label: 'pickSqueeze(pat, xs)',
-      parameters: [
-        { label: 'pat', documentation: 'Pattern of indices or names' },
-        { label: 'xs', documentation: 'Array or object of patterns to pick from' }
-      ],
-    }],
-  },
-  {
-    name: 'pickmod',
-    detail: 'Pick with wrapping',
-    documentation: 'Like pick, but wraps around if index exceeds list size.',
-    signatures: [{
-      label: 'pickmod(pat, xs)',
-      parameters: [
-        { label: 'pat', documentation: 'Pattern of indices' },
-        { label: 'xs', documentation: 'Array of patterns to pick from' }
-      ],
-    }],
-  },
-  {
-    name: 'pickmodF',
-    detail: 'Pick functions with wrapping',
-    documentation: 'Like pickF, but wraps around if index exceeds list size.',
-    signatures: [{
-      label: 'pickmodF(pat, lookup, fns)',
-      parameters: [
-        { label: 'pat', documentation: 'Pattern to transform' },
-        { label: 'lookup', documentation: 'Pattern of indices' },
-        { label: 'fns', documentation: 'Array of functions to pick from' }
-      ],
-    }],
-  },
-  {
-    name: 'pickmodOut',
-    detail: 'Pickmod output (internal)',
-    documentation: 'Internal function for the pickmod system. Returns output state from pick modifications.',
-    signatures: [{
-      label: 'pickmodOut()',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'pickmodReset',
-    detail: 'Pick with wrapping and reset',
-    documentation: 'Like pickReset, but wraps around if index exceeds list size.',
-    signatures: [{
-      label: 'pickmodReset(pat, xs)',
-      parameters: [
-        { label: 'pat', documentation: 'Pattern of indices' },
-        { label: 'xs', documentation: 'Array of patterns to pick from' }
-      ],
-    }],
-  },
-  {
-    name: 'pickmodRestart',
-    detail: 'Pick with wrapping and restart',
-    documentation: 'Like pickRestart, but wraps around if index exceeds list size.',
-    signatures: [{
-      label: 'pickmodRestart(pat, xs)',
-      parameters: [
-        { label: 'pat', documentation: 'Pattern of indices' },
-        { label: 'xs', documentation: 'Array of patterns to pick from' }
-      ],
-    }],
-  },
-  {
-    name: 'pickmodSqueeze',
-    detail: 'Alias for inhabitmod',
-    documentation: 'Alias for inhabitmod. Like inhabit with wrapping.',
-    signatures: [{
-      label: 'pickmodSqueeze(pat, xs)',
-      parameters: [
-        { label: 'pat', documentation: 'Pattern of indices' },
-        { label: 'xs', documentation: 'Array of patterns to pick from' }
-      ],
-    }],
-  },
-  {
-    name: 'pitchJump',
-    detail: 'Pitch jump',
-    documentation: 'Jumps the pitch by a specified amount.',
-    signatures: [{
-      label: 'pitchJump(semitones)',
-      parameters: [{ label: 'semitones', documentation: 'Semitones to jump' }],
-    }],
-  },
-  {
-    name: 'pitchJumpTime',
-    detail: 'Pitch jump time',
-    documentation: 'Time at which pitch jump occurs.',
-    signatures: [{
-      label: 'pitchJumpTime(time)',
-      parameters: [{ label: 'time', documentation: 'Time of pitch jump' }],
-    }],
-  },
-  {
-    name: 'polyTouch',
-    detail: 'Polyphonic aftertouch',
-    documentation: 'MIDI polyphonic aftertouch (key pressure).',
-    signatures: [{
-      label: 'polyTouch(value)',
-      parameters: [{ label: 'value', documentation: 'Aftertouch value (0-127)' }],
-    }],
-  },
-  {
-    name: 'polyrhythm',
-    detail: 'Alias for stack',
-    documentation: 'Alias for stack. Plays items at the same time at the same length.',
-    signatures: [{
-      label: 'polyrhythm(...items)',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'prel',
-    detail: 'Synonym for prelease',
-    documentation: 'Pitch envelope release time in seconds. Synonym for prelease.',
-    signatures: [{
-      label: 'prel(time)',
-      parameters: [{ label: 'time', documentation: 'Release time in seconds' }],
-    }],
-  },
-  {
-    name: 'psus',
-    detail: 'Pitch envelope sustain',
-    documentation: 'Pitch envelope sustain level.',
-    signatures: [{
-      label: 'psus(level)',
-      parameters: [{ label: 'level', documentation: 'Sustain level (0-1)' }],
-    }],
-  },
-  {
-    name: 'psustain',
-    detail: 'Pitch envelope sustain',
-    documentation: 'Pitch envelope sustain level.',
-    signatures: [{
-      label: 'psustain(level)',
-      parameters: [{ label: 'level', documentation: 'Sustain level (0-1)' }],
-    }],
-  },
-  {
-    name: 'randrun',
-    detail: 'Random run',
-    documentation: 'Creates a random sequence of numbers.',
-    signatures: [{
-      label: 'randrun(n)',
-      parameters: [{ label: 'n', documentation: 'Length of sequence' }],
-    }],
-  },
-  {
-    name: 'rate',
-    detail: 'Playback rate',
-    documentation: 'Sample playback rate. 1 = normal, 2 = double speed, 0.5 = half speed.',
-    signatures: [{
-      label: 'rate(speed)',
-      parameters: [{ label: 'speed', documentation: 'Playback rate multiplier' }],
-    }],
-  },
-  {
-    name: 'rdim',
-    detail: 'Synonym for roomdim',
-    documentation: 'Reverb lowpass frequency at -60dB in Hz. Synonym for roomdim.',
-    signatures: [{
-      label: 'rdim(frequency)',
-      parameters: [{ label: 'frequency', documentation: 'Frequency in Hz (0-20000)' }],
-    }],
-  },
-  {
-    name: 'real',
-    detail: 'Real component',
-    documentation: 'Extracts or sets the real component of complex numbers. Used for spectral/FFT operations.',
-    signatures: [{
-      label: 'real(value)',
-      parameters: [{ label: 'value', documentation: 'Real component value' }],
-    }],
-  },
-  {
-    name: 'repeatTime',
-    detail: 'Repeat time',
-    documentation: 'Time interval for note repetition.',
-    signatures: [{
-      label: 'repeatTime(time)',
-      parameters: [{ label: 'time', documentation: 'Repeat interval' }],
-    }],
-  },
-  {
-    name: 'replicate',
-    detail: 'Replicate events',
-    documentation: 'Replicates each event a specified number of times.',
-    signatures: [{
-      label: 'replicate(n)',
-      parameters: [{ label: 'n', documentation: 'Number of replications' }],
-    }],
-  },
-  {
-    name: 'resonance',
-    detail: 'Synonym for lpq',
-    documentation: 'Lowpass filter resonance (Q-value). Synonym for lpq.',
-    signatures: [{
-      label: 'resonance(q)',
-      parameters: [{ label: 'q', documentation: 'Resonance factor (0-50)' }],
-    }],
-  },
-  {
-    name: 'rfade',
-    detail: 'Synonym for roomfade',
-    documentation: 'Reverb fade time in seconds. Synonym for roomfade.',
-    signatures: [{
-      label: 'rfade(seconds)',
-      parameters: [{ label: 'seconds', documentation: 'Fade time in seconds' }],
-    }],
-  },
-  {
-    name: 'rotate',
-    detail: 'Rotate pattern',
-    documentation: 'Rotates the pattern by a given number of steps.',
-    signatures: [{
-      label: 'rotate(n)',
-      parameters: [{ label: 'n', documentation: 'Number of steps to rotate' }],
-    }],
-  },
-  {
-    name: 'rsize',
-    detail: 'Synonym for roomsize',
-    documentation: 'Reverb room size (0-10). Synonym for roomsize.',
-    signatures: [{
-      label: 'rsize(size)',
-      parameters: [{ label: 'size', documentation: 'Room size (0-10)' }],
-    }],
-  },
-  {
-    name: 'scaleTrans',
-    detail: 'Scale transposition',
-    documentation: 'Transposes a pattern within a scale by the given number of scale degrees. Notes stay within the scale.',
-    signatures: [{
-      label: 'scaleTrans(degrees)',
-      parameters: [{ label: 'degrees', documentation: 'Number of scale degrees to transpose' }],
-    }],
-  },
-  {
-    name: 'scram',
-    detail: 'Scramble (alias)',
-    documentation: 'Alias for scramble - randomly rearrange pattern segments each cycle.',
-    signatures: [{
-      label: 'scram(n)',
-      parameters: [{ label: 'n', documentation: 'Number of segments to scramble' }],
-    }],
-  },
-  {
-    name: 'seconds',
-    detail: 'Seconds signal',
-    documentation: 'Returns the current time in seconds.',
-    signatures: [{
-      label: 'seconds',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'semitone',
-    detail: 'Semitone interval ratio',
-    documentation: 'Xeno-harmonic tuning function. Sets or gets the semitone interval ratio for microtonal tuning systems. In standard 12-TET, this is 2^(1/12).',
-    signatures: [{
-      label: 'semitone(ratio)',
-      parameters: [{ label: 'ratio', documentation: 'Frequency ratio for one semitone' }],
-    }],
-  },
-  {
-    name: 'seqPLoop',
-    detail: 'Sequence pattern loop',
-    documentation: 'Creates a looping sequence of patterns. Similar to seq but with loop behavior control.',
-    signatures: [{
-      label: 'seqPLoop(...patterns)',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'sequence',
-    detail: 'Alias for seq',
-    documentation: 'Alias for seq/fastcat. Crams items into one cycle.',
-    signatures: [{
-      label: 'sequence(...items)',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'sequenceP',
-    detail: 'Sequence pattern (internal)',
-    documentation: 'Internal pattern sequencing function. Creates a sequence from pattern objects.',
-    signatures: [{
-      label: 'sequenceP(...patterns)',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'shrink',
-    detail: 'Shrink pattern progressively',
-    documentation: 'Progressively shrinks the pattern by n steps until nothing left. Positive shrinks from start, negative from end. Experimental.',
-    signatures: [{
-      label: 'shrink(n)',
-      parameters: [{ label: 'n', documentation: 'Number of steps to shrink by each cycle' }],
-    }],
-  },
-  {
-    name: 'shrinklist',
-    detail: 'Shrink list (internal)',
-    documentation: 'Internal stepwise function. Shrinks a list of patterns. Used by other stepwise pattern functions.',
-    signatures: [{
-      label: 'shrinklist(patterns)',
-      parameters: [{ label: 'patterns', documentation: 'List of patterns to shrink' }],
-    }],
-  },
-  {
-    name: 'signal',
-    detail: 'Create continuous signal',
-    documentation: 'Creates a continuous signal pattern from a function of time.',
-    signatures: [{
-      label: 'signal(fn)',
-      parameters: [{ label: 'fn', documentation: 'Function of time returning value' }],
-    }],
-  },
-  {
-    name: 'slide',
-    detail: 'Pitch slide',
-    documentation: 'Slides pitch between notes (portamento).',
-    signatures: [{
-      label: 'slide(amount)',
-      parameters: [{ label: 'amount', documentation: 'Slide amount' }],
-    }],
-  },
-  {
-    name: 'slowChunk',
-    detail: 'Slow chunk',
-    documentation: 'Divides pattern into n parts, cycles through applying function to each part (one per cycle).',
-    signatures: [{
-      label: 'slowChunk(n, fn)',
-      parameters: [
-        { label: 'n', documentation: 'Number of parts' },
-        { label: 'fn', documentation: 'Function to apply' }
-      ],
-    }],
-  },
-  {
-    name: 'slowcatPrime',
-    detail: 'Slowcat prime (internal)',
-    documentation: 'Internal variant of slowcat. Concatenates patterns one per cycle with prime number cycling behavior.',
-    signatures: [{
-      label: 'slowcatPrime(...patterns)',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'slowchunk',
-    detail: 'Alias for slowChunk',
-    documentation: 'Alias for slowChunk/chunk. Divides pattern into n parts, applies function to each.',
-    signatures: [{
-      label: 'slowchunk(n, fn)',
-      parameters: [
-        { label: 'n', documentation: 'Number of parts' },
-        { label: 'fn', documentation: 'Function to apply' }
-      ],
-    }],
-  },
-  {
-    name: 'smear',
-    detail: 'Spectral smear',
-    documentation: 'SuperDirt spectral effect - smears/blurs the frequency content of the audio over time.',
-    signatures: [{
-      label: 'smear(amount)',
-      parameters: [{ label: 'amount', documentation: 'Smear amount' }],
-    }],
-  },
-  {
-    name: 'sol2note',
-    detail: 'Solfege to note',
-    documentation: 'Convert solfege notation (do, re, mi, etc.) to note numbers.',
-    signatures: [{
-      label: 'sol2note(solfege)',
-      parameters: [{ label: 'solfege', documentation: 'Solfege syllable (do, re, mi, fa, sol, la, si/ti)' }],
-    }],
-  },
-  {
-    name: 'songPtr',
-    detail: 'Song pointer (internal)',
-    documentation: 'Internal function for managing song position/playhead.',
-    signatures: [{
-      label: 'songPtr()',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'sparsity',
-    detail: 'Alias for slow',
-    documentation: 'Alias for slow. Slows down a pattern over the given number of cycles.',
-    signatures: [{
-      label: 'sparsity(factor)',
-      parameters: [{ label: 'factor', documentation: 'Slow down factor' }],
-    }],
-  },
-  {
-    name: 'speak',
-    detail: 'Speech synthesis',
-    documentation: 'Uses speech synthesis to speak the pattern values.',
-    signatures: [{
-      label: 'speak(text)',
-      parameters: [{ label: 'text', documentation: 'Text to speak' }],
-    }],
-  },
-  {
-    name: 'splice',
-    detail: 'Splice sample',
-    documentation: 'Cuts a sample into slices and plays them according to the pattern.',
-    signatures: [{
-      label: 'splice(n, pat)',
-      parameters: [
-        { label: 'n', documentation: 'Number of slices' },
-        { label: 'pat', documentation: 'Pattern of slice indices' }
-      ],
-    }],
-  },
-  {
-    name: 'splitAt',
-    detail: 'Split pattern at position',
-    documentation: 'Splits a pattern at a given position, returning two patterns: one before and one after the split point.',
-    signatures: [{
-      label: 'splitAt(position)',
-      parameters: [{ label: 'position', documentation: 'Position to split at (0-1 within cycle)' }],
-    }],
-  },
-  {
-    name: 'squeeze',
-    detail: 'Squeeze patterns by index',
-    documentation: 'Picks from a list of values/patterns via index. Selected pattern is compressed to fit the selecting event duration.',
-    signatures: [{
-      label: 'squeeze(pat, xs)',
-      parameters: [
-        { label: 'pat', documentation: 'Pattern of indices' },
-        { label: 'xs', documentation: 'Array of patterns to pick from' }
-      ],
-    }],
-  },
-  {
-    name: 'stackBy',
-    detail: 'Stack with function',
-    documentation: 'Stack patterns together, applying a function to combine them.',
-    signatures: [{
-      label: 'stackBy(fn, patterns)',
-      parameters: [
-        { label: 'fn', documentation: 'Function to apply when stacking' },
-        { label: 'patterns', documentation: 'Patterns to stack' },
-      ],
-    }],
-  },
-  {
-    name: 'stackCentre',
-    detail: 'Stack centered',
-    documentation: 'Stack patterns with center alignment.',
-    signatures: [{
-      label: 'stackCentre(...patterns)',
-      parameters: [{ label: 'patterns', documentation: 'Patterns to stack (center-aligned)' }],
-    }],
-  },
-  {
-    name: 'stackLeft',
-    detail: 'Stack left-aligned',
-    documentation: 'Stack patterns with left alignment.',
-    signatures: [{
-      label: 'stackLeft(...patterns)',
-      parameters: [{ label: 'patterns', documentation: 'Patterns to stack (left-aligned)' }],
-    }],
-  },
-  {
-    name: 'stackRight',
-    detail: 'Stack right-aligned',
-    documentation: 'Stack patterns with right alignment.',
-    signatures: [{
-      label: 'stackRight(...patterns)',
-      parameters: [{ label: 'patterns', documentation: 'Patterns to stack (right-aligned)' }],
-    }],
-  },
-  {
-    name: 'steady',
-    detail: 'Steady pattern',
-    documentation: 'Creates a steady/constant pattern that doesn\'t change over time.',
-    signatures: [{
-      label: 'steady(value)',
-      parameters: [{ label: 'value', documentation: 'Constant value for the pattern' }],
-    }],
-  },
-  {
-    name: 'stepalt',
-    detail: 'Stepwise alternate',
-    documentation: 'Concatenates patterns stepwise. If an argument is a list, alternates between elements. Experimental.',
-    signatures: [{
-      label: 'stepalt(...pats)',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'steps',
-    detail: 'Alias for pace',
-    documentation: 'Alias for pace. Sets the number of steps per cycle. Experimental.',
-    signatures: [{
-      label: 'steps(n)',
-      parameters: [{ label: 'n', documentation: 'Steps per cycle' }],
-    }],
-  },
-  {
-    name: 'stepsPerOctave',
-    detail: 'Microtonal steps per octave',
-    documentation: 'Xeno-harmonic tuning function. Sets the number of equal divisions of the octave for microtonal tuning. Standard is 12-TET (12 steps). Use for scales like 19-TET, 31-TET, etc.',
-    signatures: [{
-      label: 'stepsPerOctave(steps)',
-      parameters: [{ label: 'steps', documentation: 'Number of equal steps per octave (e.g., 12, 19, 31)' }],
-    }],
-  },
-  {
-    name: 'strans',
-    detail: 'Scale transpose',
-    documentation: 'Transposes notes by scale degrees within the current scale. Like mtranspose but may use different internals.',
-    signatures: [{
-      label: 'strans(degrees)',
-      parameters: [{ label: 'degrees', documentation: 'Number of scale degrees to transpose' }],
-    }],
-  },
-  {
-    name: 'stringifyValues',
-    detail: 'Stringify pattern values (internal)',
-    documentation: 'Internal utility function. Converts pattern values to their string representations. Used for debugging and display.',
-    signatures: [{
-      label: 'stringifyValues(pattern)',
-      parameters: [{ label: 'pattern', documentation: 'Pattern whose values to stringify' }],
-    }],
-  },
-  {
-    name: 'stutWith',
-    detail: 'Echo with function',
-    documentation: 'Superimpose and offset multiple times, applying a function each iteration. Alias: echoWith.',
-    signatures: [{
-      label: 'stutWith(times, time, fn)',
-      parameters: [
-        { label: 'times', documentation: 'Number of repetitions' },
-        { label: 'time', documentation: 'Cycle offset between iterations' },
-        { label: 'fn', documentation: 'Function to apply (receives pattern and index)' }
-      ],
-    }],
-  },
-  {
-    name: 'stutwith',
-    detail: 'Echo with function',
-    documentation: 'Alias for stutWith/echoWith. Superimpose and offset with function applied each iteration.',
-    signatures: [{
-      label: 'stutwith(times, time, fn)',
-      parameters: [
-        { label: 'times', documentation: 'Number of repetitions' },
-        { label: 'time', documentation: 'Cycle offset between iterations' },
-        { label: 'fn', documentation: 'Function to apply' }
-      ],
-    }],
-  },
-  {
-    name: 'sustainpedal',
-    detail: 'Sustain pedal',
-    documentation: 'MIDI sustain pedal control.',
-    signatures: [{
-      label: 'sustainpedal(value)',
-      parameters: [{ label: 'value', documentation: 'Pedal value (0-127)' }],
-    }],
-  },
-  {
-    name: 'take',
-    detail: 'Take steps',
-    documentation: 'Takes the given number of steps from a pattern. Positive takes from start, negative from end. Experimental stepwise function.',
-    signatures: [{
-      label: 'take(n)',
-      parameters: [{ label: 'n', documentation: 'Number of steps to take (positive=start, negative=end)' }],
-    }],
-  },
-  {
-    name: 'timeCat',
-    detail: 'Alias for stepcat',
-    documentation: 'Alias for stepcat. Concatenates patterns proportionally to step count.',
-    signatures: [{
-      label: 'timeCat(...pats)',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'timecat',
-    detail: 'Alias for stepcat',
-    documentation: 'Alias for stepcat. Concatenates patterns proportionally to step count.',
-    signatures: [{
-      label: 'timecat(...pats)',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'toBipolar',
-    detail: 'Convert to bipolar',
-    documentation: 'Converts a unipolar value (0 to 1) to bipolar (-1 to 1).',
-    signatures: [{
-      label: 'toBipolar(value)',
-      parameters: [{ label: 'value', documentation: 'Unipolar value (0 to 1)' }],
-    }],
-  },
-  {
-    name: 'tokenizeNote',
-    detail: 'Tokenize note string (internal)',
-    documentation: 'Internal parser function. Tokenizes a note string into its components (note name, octave, accidentals). Used for note parsing.',
-    signatures: [{
-      label: 'tokenizeNote(noteString)',
-      parameters: [{ label: 'noteString', documentation: 'Note string to tokenize (e.g., "C#4")' }],
-    }],
-  },
-  {
-    name: 'tour',
-    detail: 'Tour through patterns',
-    documentation: 'Inserts a pattern into a list, moving backwards through the list on successive repetitions. Experimental stepwise function.',
-    signatures: [{
-      label: 'tour(pat, ...pats)',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'trans',
-    detail: 'Transpose',
-    documentation: 'Transposes notes by semitones. Similar to add but specifically for note transposition.',
-    signatures: [{
-      label: 'trans(semitones)',
-      parameters: [{ label: 'semitones', documentation: 'Number of semitones to transpose' }],
-    }],
-  },
-  {
-    name: 'triode',
-    detail: 'Triode distortion',
-    documentation: 'Triode tube distortion effect.',
-    signatures: [{
-      label: 'triode(amount)',
-      parameters: [{ label: 'amount', documentation: 'Distortion amount' }],
-    }],
-  },
-  {
-    name: 'tsdelay',
-    detail: 'Time-stretch delay',
-    documentation: 'SuperDirt delay parameter - controls time-stretch delay send level.',
-    signatures: [{
-      label: 'tsdelay(amount)',
-      parameters: [{ label: 'amount', documentation: 'Delay send amount (0-1)' }],
-    }],
-  },
-  {
-    name: 'unicodeToBase64',
-    detail: 'Encode unicode to base64 (internal)',
-    documentation: 'Internal utility function. Encodes unicode text to a base64 string. Used for code sharing/compression.',
-    signatures: [{
-      label: 'unicodeToBase64(text)',
-      parameters: [{ label: 'text', documentation: 'Unicode text to encode' }],
-    }],
-  },
-  {
-    name: 'uniq',
-    detail: 'Remove duplicates',
-    documentation: 'Removes duplicate consecutive values from the pattern, keeping only unique adjacent events.',
-    signatures: [{
-      label: 'uniq()',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'uniqsort',
-    detail: 'Unique sorted values',
-    documentation: 'Returns unique values from the pattern, sorted in ascending order.',
-    signatures: [{
-      label: 'uniqsort()',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'uniqsortr',
-    detail: 'Unique reverse sorted',
-    documentation: 'Returns unique values from the pattern, sorted in descending (reverse) order.',
-    signatures: [{
-      label: 'uniqsortr()',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'valueToMidi',
-    detail: 'Value to MIDI number',
-    documentation: 'Converts a note value (note name or number) to its MIDI note number representation.',
-    signatures: [{
-      label: 'valueToMidi(value)',
-      parameters: [{ label: 'value', documentation: 'Note value to convert' }],
-    }],
-  },
-  {
-    name: 'vmod',
-    detail: 'Vibrato depth (synonym for vibmod)',
-    documentation: 'Sets the vibrato depth in semitones. Synonym for `vibmod`. Only has an effect if `vibrato`, `vib`, or `v` is also set.\n\nExample:\n```js\nnote("a e").vib(4).vmod("<.25 .5 1 2 12>")\n```',
-    signatures: [{
-      label: 'vmod(depth)',
-      parameters: [{ label: 'depth', documentation: 'Vibrato depth in semitones' }],
-    }],
-  },
-  {
-    name: 'voice',
-    detail: 'Voice control',
-    documentation: 'Selects a voice or algorithm for FM synth.',
-    signatures: [{
-      label: 'voice(n)',
-      parameters: [{ label: 'n', documentation: 'Voice number or name' }],
-    }],
-  },
-  {
-    name: 'voicingAlias',
-    detail: 'Define voicing alias',
-    documentation: 'Creates an alias for a voicing. Allows you to define custom names for chord voicings.',
-    signatures: [{
-      label: 'voicingAlias(alias, voicing)',
-      parameters: [
-        { label: 'alias', documentation: 'Name for the alias' },
-        { label: 'voicing', documentation: 'Voicing to alias' },
-      ],
-    }],
-  },
-  {
-    name: 'warpatt',
-    detail: 'Warp attack (alias)',
-    documentation: 'Alias for warpattack - attack time of the wavetable oscillator\'s warp envelope',
-    signatures: [{
-      label: 'warpatt(time)',
-      parameters: [{ label: 'time', documentation: 'Attack time in seconds' }],
-    }],
-  },
-  {
-    name: 'warpdec',
-    detail: 'Warp decay (alias)',
-    documentation: 'Alias for warpdecay - decay time of the wavetable oscillator\'s warp envelope',
-    signatures: [{
-      label: 'warpdec(time)',
-      parameters: [{ label: 'time', documentation: 'Decay time in seconds' }],
-    }],
-  },
-  {
-    name: 'warprel',
-    detail: 'Warp release (alias)',
-    documentation: 'Alias for warprelease - release time of the wavetable oscillator\'s warp envelope',
-    signatures: [{
-      label: 'warprel(time)',
-      parameters: [{ label: 'time', documentation: 'Release time in seconds' }],
-    }],
-  },
-  {
-    name: 'warpsus',
-    detail: 'Warp sustain (alias)',
-    documentation: 'Alias for warpsustain - sustain level of the wavetable oscillator\'s warp envelope',
-    signatures: [{
-      label: 'warpsus(level)',
-      parameters: [{ label: 'level', documentation: 'Sustain level (0 to 1)' }],
-    }],
-  },
-  {
-    name: 'wavetablePhaseRand',
-    detail: 'Wavetable phase randomization',
-    documentation: 'Phase randomization for wavetable synthesis.',
-    signatures: [{
-      label: 'wavetablePhaseRand(amount)',
-      parameters: [{ label: 'amount', documentation: 'Phase randomization amount' }],
-    }],
-  },
-  {
-    name: 'wavetablePosition',
-    detail: 'Wavetable position',
-    documentation: 'Position within the wavetable (0-1).',
-    signatures: [{
-      label: 'wavetablePosition(pos)',
-      parameters: [{ label: 'pos', documentation: 'Position in wavetable (0-1)' }],
-    }],
-  },
-  {
-    name: 'wavetableWarp',
-    detail: 'Wavetable warp',
-    documentation: 'Warp/morph amount for wavetable.',
-    signatures: [{
-      label: 'wavetableWarp(amount)',
-      parameters: [{ label: 'amount', documentation: 'Warp amount' }],
-    }],
-  },
-  {
-    name: 'wavetableWarpMode',
-    detail: 'Wavetable warp mode',
-    documentation: 'Warp mode for wavetable synthesis.',
-    signatures: [{
-      label: 'wavetableWarpMode(mode)',
-      parameters: [{ label: 'mode', documentation: 'Warp mode' }],
-    }],
-  },
-  {
-    name: 'wchooseCycles',
-    detail: 'Weighted choose per cycle',
-    documentation: 'Picks one element at random each cycle with probability weights. Alias: wrandcat.',
-    signatures: [{
-      label: 'wchooseCycles(...pairs)',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'withValue',
-    detail: 'Transform value',
-    documentation: 'Applies a function to each value in the pattern. Like fmap but for the value portion of events.',
-    signatures: [{
-      label: 'withValue(fn)',
-      parameters: [{ label: 'fn', documentation: 'Function to apply to each value' }],
-    }],
-  },
-  {
-    name: 'wrandcat',
-    detail: 'Alias for wchooseCycles',
-    documentation: 'Alias for wchooseCycles. Picks one element at random each cycle with probability weights.',
-    signatures: [{
-      label: 'wrandcat(...pairs)',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'wtatt',
-    detail: 'Wavetable attack (alias)',
-    documentation: 'Alias for wtattack - attack time of the wavetable oscillator\'s position envelope',
-    signatures: [{
-      label: 'wtatt(time)',
-      parameters: [{ label: 'time', documentation: 'Attack time in seconds' }],
-    }],
-  },
-  {
-    name: 'wtdec',
-    detail: 'Wavetable decay (alias)',
-    documentation: 'Alias for wtdecay - decay time of the wavetable oscillator\'s position envelope',
-    signatures: [{
-      label: 'wtdec(time)',
-      parameters: [{ label: 'time', documentation: 'Decay time in seconds' }],
-    }],
-  },
-  {
-    name: 'wtrel',
-    detail: 'Wavetable release (alias)',
-    documentation: 'Alias for wtrelease - release time of the wavetable oscillator\'s position envelope',
-    signatures: [{
-      label: 'wtrel(time)',
-      parameters: [{ label: 'time', documentation: 'Release time in seconds' }],
-    }],
-  },
-  {
-    name: 'wtsus',
-    detail: 'Wavetable sustain (alias)',
-    documentation: 'Alias for wtsustain - sustain level of the wavetable oscillator\'s position envelope',
-    signatures: [{
-      label: 'wtsus(level)',
-      parameters: [{ label: 'level', documentation: 'Sustain level (0 to 1)' }],
-    }],
-  },
-  {
-    name: 'xsdelay',
-    detail: 'Cross-fading delay',
-    documentation: 'SuperDirt delay parameter - cross-fading delay send level',
-    signatures: [{
-      label: 'xsdelay(amount)',
-      parameters: [{ label: 'amount', documentation: 'Delay send amount (0-1)' }],
-    }],
-  },
-  {
-    name: 'zcrush',
-    detail: 'ZZFX crush',
-    documentation: 'ZZFX bit-crusher effect.',
-    signatures: [{
-      label: 'zcrush(amount)',
-      parameters: [{ label: 'amount', documentation: 'Crush amount' }],
-    }],
-  },
-  {
-    name: 'zdelay',
-    detail: 'ZZFX delay',
-    documentation: 'ZZFX delay effect.',
-    signatures: [{
-      label: 'zdelay(time)',
-      parameters: [{ label: 'time', documentation: 'Delay time' }],
-    }],
-  },
-  {
-    name: 'zipWith',
-    detail: 'Zip with function',
-    documentation: 'Zips patterns together applying a combining function to each pair of values.',
-    signatures: [{
-      label: 'zipWith(fn, ...pats)',
-      parameters: [{ label: 'fn', documentation: 'Function to combine values' }],
-    }],
-  },
-  {
-    name: 'zmod',
-    detail: 'ZZFX modulation',
-    documentation: 'ZZFX modulation effect.',
-    signatures: [{
-      label: 'zmod(amount)',
-      parameters: [{ label: 'amount', documentation: 'Modulation amount' }],
-    }],
-  },
-  {
-    name: 'znoise',
-    detail: 'ZZFX noise',
-    documentation: 'ZZFX noise effect.',
-    signatures: [{
-      label: 'znoise(amount)',
-      parameters: [{ label: 'amount', documentation: 'Noise amount' }],
-    }],
-  },
-  {
-    name: 'zoomArc',
-    detail: 'Zoom into time arc',
-    documentation: 'Zooms into a specific time arc/span within the pattern. Used for focusing on a portion of the pattern cycle.',
-    signatures: [{
-      label: 'zoomArc(begin, end)',
-      parameters: [
-        { label: 'begin', documentation: 'Start of the arc (0-1)' },
-        { label: 'end', documentation: 'End of the arc (0-1)' },
-      ],
-    }],
-  },
-  {
-    name: 'zoomarc',
-    detail: 'Zoom into time arc',
-    documentation: 'Alias for zoomArc. Zooms into a specific time arc/span within the pattern.',
-    signatures: [{
-      label: 'zoomarc(begin, end)',
-      parameters: [
-        { label: 'begin', documentation: 'Start of the arc (0-1)' },
-        { label: 'end', documentation: 'End of the arc (0-1)' },
-      ],
-    }],
-  },
-  {
-    name: 'zrand',
-    detail: 'ZZFX randomness',
-    documentation: 'ZZFX randomness effect.',
-    signatures: [{
-      label: 'zrand(amount)',
-      parameters: [{ label: 'amount', documentation: 'Randomness amount' }],
-    }],
-  },
-  {
-    name: 'zzfx',
-    detail: 'ZZFX synthesizer',
-    documentation: 'ZZFX tiny sound synthesizer. Takes ZZFX parameter array.',
-    signatures: [{
-      label: 'zzfx(...params)',
-      parameters: [],
-    }],
-  },
-  // === MISSING FUNCTIONS FROM STRUDEL DOCS ===
-  // Tremolo aliases
-  {
-    name: 'tremsync',
-    detail: 'Tremolo sync (alias)',
-    documentation: 'Alias for tremolosync - sync tremolo to cycles',
-    signatures: [{
-      label: 'tremsync(cycles)',
-      parameters: [{ label: 'cycles', documentation: 'Cycles to sync tremolo to' }],
-    }],
-  },
-  {
-    name: 'tremdepth',
-    detail: 'Tremolo depth (alias)',
-    documentation: 'Alias for tremolodepth - tremolo modulation depth',
-    signatures: [{
-      label: 'tremdepth(amount)',
-      parameters: [{ label: 'amount', documentation: 'Depth of tremolo (0-1)' }],
-    }],
-  },
-  {
-    name: 'tremskew',
-    detail: 'Tremolo skew (alias)',
-    documentation: 'Alias for tremoloskew - skew the tremolo waveform',
-    signatures: [{
-      label: 'tremskew(amount)',
-      parameters: [{ label: 'amount', documentation: 'Skew amount' }],
-    }],
-  },
-  {
-    name: 'tremphase',
-    detail: 'Tremolo phase (alias)',
-    documentation: 'Alias for tremolophase - phase of the tremolo LFO',
-    signatures: [{
-      label: 'tremphase(phase)',
-      parameters: [{ label: 'phase', documentation: 'Phase offset (0-1)' }],
-    }],
-  },
-  {
-    name: 'tremshape',
-    detail: 'Tremolo shape (alias)',
-    documentation: 'Alias for tremoloshape - shape of the tremolo waveform',
-    signatures: [{
-      label: 'tremshape(shape)',
-      parameters: [{ label: 'shape', documentation: 'Shape number (0, 1, 2, ...)' }],
-    }],
-  },
-  // Postgain alias
-  {
-    name: 'post',
-    detail: 'Post gain (alias)',
-    documentation: 'Alias for postgain - gain applied after effects',
-    signatures: [{
-      label: 'post(amount)',
-      parameters: [{ label: 'amount', documentation: 'Post-effects gain level' }],
-    }],
-  },
-  // MIDI input alias
-  {
-    name: 'midin',
-    detail: 'MIDI input (alias)',
-    documentation: 'Alias for midiin - receive MIDI input',
-    signatures: [{
-      label: 'midin()',
-      parameters: [],
-    }],
-  },
-  // Mouse Y signal
-  {
-    name: 'mousey',
-    detail: 'Mouse Y position (alias)',
-    documentation: 'Alias for mouseY - continuous signal of mouse Y position (0-1)',
-    signatures: [{
-      label: 'mousey',
-      documentation: 'Use with .range() to set output range',
-      parameters: [],
-    }],
-  },
-  // Tempo setting functions
-  {
-    name: 'setbpm',
-    detail: 'Set BPM (alias)',
-    documentation: 'Alias for setBpm - set tempo in beats per minute',
-    signatures: [{
-      label: 'setbpm(bpm)',
-      parameters: [{ label: 'bpm', documentation: 'Beats per minute' }],
-    }],
-  },
-  {
-    name: 'setBpm',
-    detail: 'Set BPM',
-    documentation: 'Set the tempo in beats per minute',
-    signatures: [{
-      label: 'setBpm(bpm)',
-      parameters: [{ label: 'bpm', documentation: 'Beats per minute (e.g., 120)' }],
-    }],
-  },
-  {
-    name: 'setcpm',
-    detail: 'Set CPM',
-    documentation: 'Set the tempo in cycles per minute',
-    signatures: [{
-      label: 'setcpm(cpm)',
-      parameters: [{ label: 'cpm', documentation: 'Cycles per minute' }],
-    }],
-  },
-  // Bipolar signal variants (-1 to 1)
-  {
-    name: 'sine2',
-    detail: 'Sine signal (bipolar)',
-    documentation: 'Continuous sine wave from -1 to 1',
-    signatures: [{
-      label: 'sine2',
-      documentation: 'Use with .range() to set output range',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'saw2',
-    detail: 'Sawtooth signal (bipolar)',
-    documentation: 'Continuous sawtooth wave from -1 to 1',
-    signatures: [{
-      label: 'saw2',
-      documentation: 'Use with .range() to set output range',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'tri2',
-    detail: 'Triangle signal (bipolar)',
-    documentation: 'Continuous triangle wave from -1 to 1',
-    signatures: [{
-      label: 'tri2',
-      documentation: 'Use with .range() to set output range',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'square2',
-    detail: 'Square signal (bipolar)',
-    documentation: 'Continuous square wave alternating between -1 and 1',
-    signatures: [{
-      label: 'square2',
-      documentation: 'Use with .range() to set output range',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'cosine2',
-    detail: 'Cosine signal (bipolar)',
-    documentation: 'Continuous cosine wave from -1 to 1',
-    signatures: [{
-      label: 'cosine2',
-      documentation: 'Use with .range() to set output range',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'rand2',
-    detail: 'Random signal (bipolar)',
-    documentation: 'Continuous random values from -1 to 1',
-    signatures: [{
-      label: 'rand2',
-      documentation: 'Use with .range() to set output range',
-      parameters: [],
-    }],
-  },
-  // Duck attack alias
-  {
-    name: 'duckatt',
-    detail: 'Duck attack (alias)',
-    documentation: 'Alias for duckattack - attack time for ducking/sidechain',
-    signatures: [{
-      label: 'duckatt(time)',
-      parameters: [{ label: 'time', documentation: 'Attack time in seconds' }],
-    }],
-  },
-  // Visualization functions
-  {
-    name: 'pianoroll',
-    detail: 'Piano roll visualization',
-    documentation: 'Display a scrolling piano roll visualization',
-    signatures: [{
-      label: 'pianoroll()',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'punchcard',
-    detail: 'Punchcard visualization',
-    documentation: 'Display a punchcard-style visualization',
-    signatures: [{
-      label: 'punchcard()',
-      parameters: [],
-    }],
-  },
-  {
-    name: '_pianoroll',
-    detail: 'Inline piano roll',
-    documentation: 'Display an inline piano roll visualization',
-    signatures: [{
-      label: '_pianoroll()',
-      parameters: [],
-    }],
-  },
-  {
-    name: '_punchcard',
-    detail: 'Inline punchcard',
-    documentation: 'Display an inline punchcard visualization',
-    signatures: [{
-      label: '_punchcard()',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'spiral',
-    detail: 'Spiral visualization',
-    documentation: 'Display a spiral visualization',
-    signatures: [{
-      label: 'spiral()',
-      parameters: [],
-    }],
-  },
-  {
-    name: '_spiral',
-    detail: 'Inline spiral',
-    documentation: 'Display an inline spiral visualization',
-    signatures: [{
-      label: '_spiral()',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'scope',
-    detail: 'Oscilloscope',
-    documentation: 'Display an oscilloscope visualization',
-    signatures: [{
-      label: 'scope()',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'tscope',
-    detail: 'Triggered oscilloscope',
-    documentation: 'Alias for scope - triggered oscilloscope visualization',
-    signatures: [{
-      label: 'tscope()',
-      parameters: [],
-    }],
-  },
-  {
-    name: '_scope',
-    detail: 'Inline oscilloscope',
-    documentation: 'Display an inline oscilloscope visualization',
-    signatures: [{
-      label: '_scope()',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'pitchwheel',
-    detail: 'Pitch wheel visualization',
-    documentation: 'Display a pitch circle visualization',
-    signatures: [{
-      label: 'pitchwheel()',
-      parameters: [],
-    }],
-  },
-  {
-    name: '_pitchwheel',
-    detail: 'Inline pitch wheel',
-    documentation: 'Display an inline pitch circle visualization',
-    signatures: [{
-      label: '_pitchwheel()',
-      parameters: [],
-    }],
-  },
-  {
-    name: 'spectrum',
-    detail: 'Spectrum analyzer',
-    documentation: 'Display a spectrum analyzer visualization',
-    signatures: [{
-      label: 'spectrum()',
-      parameters: [],
-    }],
-  },
-  {
-    name: '_spectrum',
-    detail: 'Inline spectrum analyzer',
-    documentation: 'Display an inline spectrum analyzer visualization',
-    signatures: [{
-      label: '_spectrum()',
-      parameters: [],
-    }],
-  },
-  // Noise types
-  {
-    name: 'crackle',
-    detail: 'Crackle noise',
-    documentation: 'Crackle noise oscillator',
-    signatures: [{
-      label: 'crackle',
-      documentation: 'Use .density() to control crackle rate',
-      parameters: [],
-    }],
-  },
-  // Sample loading
-  {
-    name: 'samples',
-    detail: 'Load samples',
-    documentation: 'Load custom sample maps from URLs or objects',
-    signatures: [{
-      label: 'samples(sampleMap)',
-      parameters: [{ label: 'sampleMap', documentation: 'Object mapping sample names to URLs, or URL to sample pack' }],
-    }, {
-      label: 'samples(url, prefix)',
-      parameters: [
-        { label: 'url', documentation: 'URL to sample pack or GitHub repo' },
-        { label: 'prefix', documentation: 'Optional prefix for sample names' },
-      ],
-    }],
-  },
-  {
-    name: 'soundAlias',
-    detail: 'Create sound alias',
-    documentation: 'Create an alias for a sound/sample name',
-    signatures: [{
-      label: 'soundAlias(aliases)',
-      parameters: [{ label: 'aliases', documentation: 'Object mapping alias names to sound names' }],
-    }],
-  },
-  // Register function
-  {
-    name: 'register',
-    detail: 'Register custom function',
-    documentation: 'Register a custom function to be available as a pattern method',
-    signatures: [{
-      label: 'register(name, function)',
-      parameters: [
-        { label: 'name', documentation: 'Name of the function to register' },
-        { label: 'function', documentation: 'Function implementation' },
-      ],
-    }],
-  },
-  // OSC output
-  {
-    name: 'osc',
-    detail: 'OSC output',
-    documentation: 'Send pattern events via OSC (Open Sound Control)',
-    signatures: [{
-      label: 'osc()',
-      parameters: [],
-    }],
-  },
-  // MQTT output
-  {
-    name: 'mqtt',
-    detail: 'MQTT output',
-    documentation: 'Send pattern events via MQTT',
-    signatures: [{
-      label: 'mqtt(topic)',
-      parameters: [{ label: 'topic', documentation: 'MQTT topic to publish to' }],
-    }],
-  },
-  // MIDI maps
-  {
-    name: 'midimaps',
-    detail: 'Define MIDI mappings',
-    documentation: 'Define custom MIDI CC mappings',
-    signatures: [{
-      label: 'midimaps(mappings)',
-      parameters: [{ label: 'mappings', documentation: 'Object mapping control names to CC numbers' }],
-    }],
-  },
-  {
-    name: 'defaultmidimap',
-    detail: 'Default MIDI map',
-    documentation: 'Use the default MIDI mapping',
-    signatures: [{
-      label: 'defaultmidimap()',
-      parameters: [],
-    }],
-  },
-  // CSS styling
-  {
-    name: 'markcss',
-    detail: 'CSS for highlighting',
-    documentation: 'Set CSS styles for event highlighting/visualization',
-    signatures: [{
-      label: 'markcss(css)',
-      parameters: [{ label: 'css', documentation: 'CSS string for styling highlighted elements' }],
-    }],
-  },
-  // Amplitude modulation
-  {
-    name: 'am',
-    detail: 'Amplitude modulation',
-    documentation: 'Apply amplitude modulation',
-    signatures: [{
-      label: 'am(frequency)',
-      parameters: [{ label: 'frequency', documentation: 'Modulation frequency in Hz' }],
-    }],
-  },
-  // Euclidean legato
-  {
-    name: 'euclidLegato',
-    detail: 'Euclidean legato',
-    documentation: 'Euclidean rhythm with legato (connected notes)',
-    signatures: [{
-      label: 'euclidLegato(pulses, steps)',
-      parameters: [
-        { label: 'pulses', documentation: 'Number of pulses/hits' },
-        { label: 'steps', documentation: 'Total number of steps' },
-      ],
-    }, {
-      label: 'euclidLegato(pulses, steps, rotation)',
-      parameters: [
-        { label: 'pulses', documentation: 'Number of pulses/hits' },
-        { label: 'steps', documentation: 'Total number of steps' },
-        { label: 'rotation', documentation: 'Rotation offset' },
-      ],
-    }],
-  },
-  // MIDI output
-  {
-    name: 'midi',
-    detail: 'MIDI output',
-    documentation: 'Send pattern events to MIDI output',
-    signatures: [{
-      label: 'midi()',
-      parameters: [],
-    }, {
-      label: 'midi(output)',
-      parameters: [{ label: 'output', documentation: 'MIDI output device name' }],
-    }],
-  },
-
+    name: "markcss",
+    detail: "markcss/tag",
+    documentation:
+      "<p>Overrides the css of highlighted events. Make sure to use single quotes!</p>",
+    signatures: [
+      {
+        label: "markcss()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "slider",
+    detail: "slider/external_io,visualization",
+    documentation:
+      "<p>Displays a slider widget to allow the user manipulate a value</p>",
+    signatures: [
+      {
+        label: "slider(value, min, max, step)",
+        parameters: [
+          {
+            label: "number value",
+            documentation: "<p>Initial value</p>",
+          },
+          {
+            label: "number min",
+            documentation: "<p>Minimum value - optional, defaults to 0</p>",
+          },
+          {
+            label: "number max",
+            documentation: "<p>Maximum value - optional, defaults to 1</p>",
+          },
+          {
+            label: "number step",
+            documentation: "<p>Step size - optional</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "s",
+    detail: "s/superdough,samples",
+    documentation:
+      "<p>Select a sound / sample by name. When using mininotation, you can also optionally supply 'n' and 'gain' parameters\nseparated by ':'.</p>",
+    signatures: [
+      {
+        label: "s(sound)",
+        parameters: [
+          {
+            label: "string sound",
+            documentation: "<p>The sound / pattern of sounds to pick</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "wt",
+    detail: "wt/wavetable,superdough",
+    documentation:
+      "<p>Position in the wavetable of the wavetable oscillator</p>",
+    signatures: [
+      {
+        label: "wt(position)",
+        parameters: [
+          {
+            label: "number position",
+            documentation: "<p>Position in the wavetable from 0 to 1</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "wtenv",
+    detail: "wtenv/wavetable,envelope,superdough",
+    documentation:
+      "<p>Amount of envelope applied wavetable oscillator's position envelope</p>",
+    signatures: [
+      {
+        label: "wtenv(amount)",
+        parameters: [
+          {
+            label: "number amount",
+            documentation: "<p>between 0 and 1</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "wtattack",
+    detail: "wtattack/wavetable,envelope,superdough",
+    documentation:
+      "<p>Attack time of the wavetable oscillator's position envelope</p>",
+    signatures: [
+      {
+        label: "wtattack(time)",
+        parameters: [
+          {
+            label: "number time",
+            documentation: "<p>attack time in seconds</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "wtdecay",
+    detail: "wtdecay/wavetable,envelope,superdough",
+    documentation:
+      "<p>Decay time of the wavetable oscillator's position envelope</p>",
+    signatures: [
+      {
+        label: "wtdecay(time)",
+        parameters: [
+          {
+            label: "number time",
+            documentation: "<p>decay time in seconds</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "wtsustain",
+    detail: "wtsustain/wavetable,envelope,superdough",
+    documentation:
+      "<p>Sustain time of the wavetable oscillator's position envelope</p>",
+    signatures: [
+      {
+        label: "wtsustain(gain)",
+        parameters: [
+          {
+            label: "number gain",
+            documentation: "<p>sustain level (0 to 1)</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "wtrelease",
+    detail: "wtrelease/wavetable,envelope,superdough",
+    documentation:
+      "<p>Release time of the wavetable oscillator's position envelope</p>",
+    signatures: [
+      {
+        label: "wtrelease(time)",
+        parameters: [
+          {
+            label: "number time",
+            documentation: "<p>release time in seconds</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "wtrate",
+    detail: "wtrate/wavetable,lfo,superdough",
+    documentation:
+      "<p>Rate of the LFO for the wavetable oscillator's position</p>",
+    signatures: [
+      {
+        label: "wtrate(rate)",
+        parameters: [
+          {
+            label: "number rate",
+            documentation: "<p>rate in hertz</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "wtsync",
+    detail: "wtsync/wavetable,lfo,superdough",
+    documentation:
+      "<p>cycle synced rate of the LFO for the wavetable oscillator's position</p>",
+    signatures: [
+      {
+        label: "wtsync(rate)",
+        parameters: [
+          {
+            label: "number rate",
+            documentation: "<p>rate in cycles</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "wtdepth",
+    detail: "wtdepth/wavetable,lfo,superdough",
+    documentation:
+      "<p>Depth of the LFO for the wavetable oscillator's position</p>",
+    signatures: [
+      {
+        label: "wtdepth(depth)",
+        parameters: [
+          {
+            label: "number depth",
+            documentation: "<p>depth of modulation</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "wtshape",
+    detail: "wtshape/wavetable,lfo,superdough",
+    documentation:
+      "<p>Shape of the LFO for the wavetable oscillator's position</p>",
+    signatures: [
+      {
+        label: "wtshape(shape)",
+        parameters: [
+          {
+            label: "number shape",
+            documentation: "<p>Shape of the lfo (0, 1, 2, ..)</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "wtdc",
+    detail: "wtdc/wavetable,lfo,superdough",
+    documentation:
+      "<p>DC offset of the LFO for the wavetable oscillator's position</p>",
+    signatures: [
+      {
+        label: "wtdc(dcoffset)",
+        parameters: [
+          {
+            label: "number dcoffset",
+            documentation: "<p>dc offset. set to 0 for unipolar</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "wtskew",
+    detail: "wtskew/wavetable,lfo,superdough",
+    documentation:
+      "<p>Skew of the LFO for the wavetable oscillator's position</p>",
+    signatures: [
+      {
+        label: "wtskew(skew)",
+        parameters: [
+          {
+            label: "number skew",
+            documentation: "<p>How much to bend the LFO shape</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "warp",
+    detail: "warp/wavetable,superdough",
+    documentation:
+      "<p>Amount of warp (alteration of the waveform) to apply to the wavetable oscillator</p>",
+    signatures: [
+      {
+        label: "warp(amount)",
+        parameters: [
+          {
+            label: "number amount",
+            documentation: "<p>Warp of the wavetable from 0 to 1</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "warpattack",
+    detail: "warpattack/wavetable,envelope,superdough",
+    documentation:
+      "<p>Attack time of the wavetable oscillator's warp envelope</p>",
+    signatures: [
+      {
+        label: "warpattack(time)",
+        parameters: [
+          {
+            label: "number time",
+            documentation: "<p>attack time in seconds</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "warpdecay",
+    detail: "warpdecay/wavetable,envelope,superdough",
+    documentation:
+      "<p>Decay time of the wavetable oscillator's warp envelope</p>",
+    signatures: [
+      {
+        label: "warpdecay(time)",
+        parameters: [
+          {
+            label: "number time",
+            documentation: "<p>decay time in seconds</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "warpsustain",
+    detail: "warpsustain/wavetable,envelope,superdough",
+    documentation:
+      "<p>Sustain time of the wavetable oscillator's warp envelope</p>",
+    signatures: [
+      {
+        label: "warpsustain(gain)",
+        parameters: [
+          {
+            label: "number gain",
+            documentation: "<p>sustain level (0 to 1)</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "warprelease",
+    detail: "warprelease/wavetable,envelope,superdough",
+    documentation:
+      "<p>Release time of the wavetable oscillator's warp envelope</p>",
+    signatures: [
+      {
+        label: "warprelease(time)",
+        parameters: [
+          {
+            label: "number time",
+            documentation: "<p>release time in seconds</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "warprate",
+    detail: "warprate/wavetable,lfo,superdough",
+    documentation: "<p>Rate of the LFO for the wavetable oscillator's warp</p>",
+    signatures: [
+      {
+        label: "warprate(rate)",
+        parameters: [
+          {
+            label: "number rate",
+            documentation: "<p>rate in hertz</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "warpdepth",
+    detail: "warpdepth/wavetable,lfo,superdough",
+    documentation:
+      "<p>Depth of the LFO for the wavetable oscillator's warp</p>",
+    signatures: [
+      {
+        label: "warpdepth(depth)",
+        parameters: [
+          {
+            label: "number depth",
+            documentation: "<p>depth of modulation</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "warpshape",
+    detail: "warpshape/wavetable,lfo,superdough",
+    documentation:
+      "<p>Shape of the LFO for the wavetable oscillator's warp</p>",
+    signatures: [
+      {
+        label: "warpshape(shape)",
+        parameters: [
+          {
+            label: "number shape",
+            documentation: "<p>Shape of the lfo (0, 1, 2, ..)</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "warpdc",
+    detail: "warpdc/wavetable,lfo,superdough",
+    documentation:
+      "<p>DC offset of the LFO for the wavetable oscillator's warp</p>",
+    signatures: [
+      {
+        label: "warpdc(dcoffset)",
+        parameters: [
+          {
+            label: "number dcoffset",
+            documentation: "<p>dc offset. set to 0 for unipolar</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "warpskew",
+    detail: "warpskew/wavetable,lfo,superdough",
+    documentation: "<p>Skew of the LFO for the wavetable oscillator's warp</p>",
+    signatures: [
+      {
+        label: "warpskew(skew)",
+        parameters: [
+          {
+            label: "number skew",
+            documentation: "<p>How much to bend the LFO shape</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "warpmode",
+    detail: "warpmode/wavetable,superdough",
+    documentation:
+      "<p>Type of warp (alteration of the waveform) to apply to the wavetable oscillator.</p>\n<p>The current options are: none, asym, bendp, bendm, bendmp, sync, quant, fold, pwm, orbit,\nspin, chaos, primes, binary, brownian, reciprocal, wormhole, logistic, sigmoid, fractal, flip</p>",
+    signatures: [
+      {
+        label: "warpmode(mode)",
+        parameters: [
+          {
+            label: "number mode",
+            documentation: "<p>Warp mode</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "wtphaserand",
+    detail: "wtphaserand/wavetable,superdough",
+    documentation:
+      "<p>Amount of randomness of the initial phase of the wavetable oscillator.</p>",
+    signatures: [
+      {
+        label: "wtphaserand(amount)",
+        parameters: [
+          {
+            label: "number amount",
+            documentation:
+              "<p>Randomness of the initial phase. Between 0 (not random) and 1 (fully random)</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "warpenv",
+    detail: "warpenv/wavetable,envelope,superdough",
+    documentation:
+      "<p>Amount of envelope applied wavetable oscillator's position envelope</p>",
+    signatures: [
+      {
+        label: "warpenv(amount)",
+        parameters: [
+          {
+            label: "number amount",
+            documentation: "<p>between 0 and 1</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "warpsync",
+    detail: "warpsync/wavetable,lfo,superdough",
+    documentation:
+      "<p>cycle synced rate of the LFO for the wavetable warp position</p>",
+    signatures: [
+      {
+        label: "warpsync(rate)",
+        parameters: [
+          {
+            label: "number rate",
+            documentation: "<p>rate in cycles</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "source",
+    detail: "source/external_io,superdough",
+    documentation:
+      "<p>Define a custom webaudio node to use as a sound source.</p>",
+    signatures: [
+      {
+        label: "source(getSource)",
+        parameters: [
+          {
+            label: "function getSource",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "n",
+    detail: "n/superdough,samples,tonal",
+    documentation:
+      "<p>Selects the given index:</p>\n<ul>\n<li>for samples, it picks the sample by index, with wrap around</li>\n<li>for scales, it picks the scale degree</li>\n<li>for voicings, it picks the voice index</li>\n</ul>",
+    signatures: [
+      {
+        label: "n(value)",
+        parameters: [
+          {
+            label: "number value",
+            documentation: "<p>sample index starting from 0</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "i",
+    detail: "i/tonal",
+    documentation:
+      "<p>Selects the given degree. Currently used in <code>xen</code> and <code>tune</code>:</p>",
+    signatures: [
+      {
+        label: "i(value)",
+        parameters: [
+          {
+            label: "number value",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "note",
+    detail: "note/tonal",
+    documentation:
+      "<p>Plays the given note name or midi number. A note name consists of</p>\n<ul>\n<li>a letter (a-g or A-G)</li>\n<li>optional accidentals (b or #)</li>\n<li>optional (possibly negative) octave number (0-9). Defaults to 3</li>\n</ul>\n<p>Examples of valid note names: <code>c</code>, <code>bb</code>, <code>Bb</code>, <code>f#</code>, <code>c3</code>, <code>A4</code>, <code>Eb2</code>, <code>c#5</code></p>\n<p>You can also use midi numbers instead of note names, where 69 is mapped to A4 440Hz in 12EDO.</p>",
+    signatures: [
+      {
+        label: "note()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "accelerate",
+    detail: "accelerate/samples,superdirt,superdirtonly",
+    documentation:
+      "<p>A pattern of numbers that speed up (or slow down) samples while they play. Currently only supported by osc / superdirt.</p>",
+    signatures: [
+      {
+        label: "accelerate(amount)",
+        parameters: [
+          {
+            label: "number amount",
+            documentation: "<p>acceleration.</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "velocity",
+    detail: "velocity/amplitude,superdough",
+    documentation:
+      "<p>Sets the velocity from 0 to 1. Is multiplied together with gain.</p>",
+    signatures: [
+      {
+        label: "velocity()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "gain",
+    detail: "gain/amplitude,superdough",
+    documentation: "<p>Controls the gain by an exponential amount.</p>",
+    signatures: [
+      {
+        label: "gain(amount)",
+        parameters: [
+          {
+            label: "number amount",
+            documentation: "<p>gain.</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "postgain",
+    detail: "postgain/amplitude,superdough",
+    documentation: "<p>Gain applied after all effects have been processed.</p>",
+    signatures: [
+      {
+        label: "postgain()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "amp",
+    detail: "amp/amplitude,superdirt,superdirtonly",
+    documentation: "<p>Like <code>gain</code>, but linear.</p>",
+    signatures: [
+      {
+        label: "amp(amount)",
+        parameters: [
+          {
+            label: "number amount",
+            documentation: "<p>gain.</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "fmh",
+    detail: "fmh/fm,superdough",
+    documentation:
+      "<p>Sets the Frequency Modulation Harmonicity Ratio.\nControls the timbre of the sound.\nWhole numbers and simple ratios sound more natural,\nwhile decimal numbers and complex ratios sound metallic.</p>\n<p>A number may be added afterwards to control the harmonicity of\nany of the 8 individual FMs (e.g. <code>fmh2</code>)</p>",
+    signatures: [
+      {
+        label: "fmh(harmonicity)",
+        parameters: [
+          {
+            label: "number harmonicity",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "fm",
+    detail: "fm/fm,superdough",
+    documentation:
+      "<p>Sets the Frequency Modulation of the synth.\nControls the modulation index, which defines the brightness of the sound.</p>\n<p>A number may be added afterwards to control the modulation index of\nany of the 8 individual FMs (e.g. <code>fm3</code>). Also, FMs may be routed into\neach other with matrix commands like <code>fm13</code>, which would send <code>fm1</code> back into\n<code>fm3</code></p>",
+    signatures: [
+      {
+        label: "fm(brightness)",
+        parameters: [
+          {
+            label: "number brightness",
+            documentation: "<p>modulation index</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "fmenv",
+    detail: "fmenv/fm,envelope,superdough",
+    documentation:
+      "<p>Ramp type of fm envelope. Exp might be a bit broken..</p>\n<p>A number may be added afterwards to control the envelope of\nany of the 8 individual FMs (e.g. <code>fmenv4</code>)</p>",
+    signatures: [
+      {
+        label: "fmenv(type)",
+        parameters: [
+          {
+            label: "number type",
+            documentation: "<p>lin | exp</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "fmattack",
+    detail: "fmattack/fm,envelope,superdough",
+    documentation:
+      "<p>Attack time for the FM envelope: time it takes to reach maximum modulation</p>\n<p>A number may be added afterwards to control the attack of the envelope of\nany of the 8 individual FMs (e.g. <code>fmatt5</code>)</p>",
+    signatures: [
+      {
+        label: "fmattack(time)",
+        parameters: [
+          {
+            label: "number time",
+            documentation: "<p>attack time</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "fmwave",
+    detail: "fmwave/fm,superdough",
+    documentation:
+      "<p>Waveform of the fm modulator</p>\n<p>A number may be added afterwards to control the waveform\nany of the 8 individual FMs (e.g. <code>fmwave6</code>)</p>",
+    signatures: [
+      {
+        label: "fmwave(wave)",
+        parameters: [
+          {
+            label: "number wave",
+            documentation: "<p>waveform</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "fmdecay",
+    detail: "fmdecay/fm,envelope,superdough",
+    documentation:
+      "<p>Decay time for the FM envelope: seconds until the sustain level is reached after the attack phase.</p>\n<p>A number may be added afterwards to control the decay of the envelope of\nany of the 8 individual FMs (e.g. <code>fmdec6</code>)</p>",
+    signatures: [
+      {
+        label: "fmdecay(time)",
+        parameters: [
+          {
+            label: "number time",
+            documentation: "<p>decay time</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "fmsustain",
+    detail: "fmsustain/fm,envelope,superdough",
+    documentation:
+      "<p>Sustain level for the FM envelope: how much modulation is applied after the decay phase</p>\n<p>A number may be added afterwards to control the sustain of the envelope of\nany of the 8 individual FMs (e.g. <code>fmsus7</code>)</p>",
+    signatures: [
+      {
+        label: "fmsustain(level)",
+        parameters: [
+          {
+            label: "number level",
+            documentation: "<p>sustain level</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "fmrelease",
+    detail: "fmrelease/fm,envelope,superdough",
+    documentation:
+      "<p>Release time for the FM envelope: how much modulation is applied after the note is released</p>\n<p>A number may be added afterwards to control the release of the envelope of\nany of the 8 individual FMs (e.g. <code>fmrel8</code>)</p>",
+    signatures: [
+      {
+        label: "fmrelease(time)",
+        parameters: [
+          {
+            label: "number time",
+            documentation: "<p>release time</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "bank",
+    detail: "bank/samples,superdough",
+    documentation:
+      "<p>Select the sound bank to use. To be used together with <code>s</code>. The bank name (+ &quot;_&quot;) will be prepended to the value of <code>s</code>.</p>",
+    signatures: [
+      {
+        label: "bank(bank)",
+        parameters: [
+          {
+            label: "string bank",
+            documentation: "<p>the name of the bank</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "chorus",
+    detail: "chorus/pitch",
+    documentation: "<p>mix control for the chorus effect</p>",
+    signatures: [
+      {
+        label: "chorus(chorus)",
+        parameters: [
+          {
+            label: "string chorus",
+            documentation: "<p>mix amount between 0 and 1</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "attack",
+    detail: "attack/amplitude,envelope,superdough",
+    documentation:
+      "<p>Amplitude envelope attack time: Specifies how long it takes for the sound to reach its peak value, relative to the onset.</p>",
+    signatures: [
+      {
+        label: "attack(attack)",
+        parameters: [
+          {
+            label: "number attack",
+            documentation: "<p>time in seconds.</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "decay",
+    detail: "decay/amplitude,envelope,superdough",
+    documentation:
+      "<p>Amplitude envelope decay time: the time it takes after the attack time to reach the sustain level.\nNote that the decay is only audible if the sustain value is lower than 1.</p>",
+    signatures: [
+      {
+        label: "decay(time)",
+        parameters: [
+          {
+            label: "number time",
+            documentation: "<p>decay time in seconds</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "sustain",
+    detail: "sustain/amplitude,envelope,superdough",
+    documentation:
+      "<p>Amplitude envelope sustain level: The level which is reached after attack / decay, being sustained until the offset.</p>",
+    signatures: [
+      {
+        label: "sustain(gain)",
+        parameters: [
+          {
+            label: "number gain",
+            documentation: "<p>sustain level between 0 and 1</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "release",
+    detail: "release/amplitude,envelope,superdough",
+    documentation:
+      "<p>Amplitude envelope release time: The time it takes after the offset to go from sustain level to zero.</p>",
+    signatures: [
+      {
+        label: "release(time)",
+        parameters: [
+          {
+            label: "number time",
+            documentation: "<p>release time in seconds</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "bpf",
+    detail: "bpf/filter,superdough",
+    documentation:
+      "<p>Sets the center frequency of the <strong>b</strong>and-<strong>p</strong>ass <strong>f</strong>ilter. When using mininotation, you\ncan also optionally supply the 'bpq' parameter separated by ':'.</p>",
+    signatures: [
+      {
+        label: "bpf(frequency)",
+        parameters: [
+          {
+            label: "number frequency",
+            documentation: "<p>center frequency</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "bpq",
+    detail: "bpq/filter,superdough",
+    documentation:
+      "<p>Sets the <strong>b</strong>and-<strong>p</strong>ass <strong>q</strong>-factor (resonance).</p>",
+    signatures: [
+      {
+        label: "bpq(q)",
+        parameters: [
+          {
+            label: "number q",
+            documentation: "<p>q factor</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "begin",
+    detail: "begin/samples",
+    documentation:
+      "<p>A pattern of numbers from 0 to 1. Skips the beginning of each sample, e.g. <code>0.25</code> to cut off the first quarter from each sample.</p>",
+    signatures: [
+      {
+        label: "begin(amount)",
+        parameters: [
+          {
+            label: "number amount",
+            documentation:
+              "<p>between 0 and 1, where 1 is the length of the sample</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "end",
+    detail: "Pattern.end/samples",
+    documentation:
+      "<p>The same as .begin, but cuts off the end off each sample.</p>",
+    signatures: [
+      {
+        label: "end(length)",
+        parameters: [
+          {
+            label: "number length",
+            documentation:
+              "<p>1 = whole sample, .5 = half sample, .25 = quarter sample etc..</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "loop",
+    detail: "loop/samples",
+    documentation:
+      "<p>Loops the sample.\nNote that the tempo of the loop is not synced with the cycle tempo.\nTo change the loop region, use loopBegin / loopEnd.</p>",
+    signatures: [
+      {
+        label: "loop(on)",
+        parameters: [
+          {
+            label: "number on",
+            documentation: "<p>If 1, the sample is looped</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "loopBegin",
+    detail: "loopBegin/samples",
+    documentation:
+      "<p>Begin to loop at a specific point in the sample (inbetween <code>begin</code> and <code>end</code>).\nNote that the loop point must be inbetween <code>begin</code> and <code>end</code>, and before <code>loopEnd</code>!\nNote: Samples starting with wt_ will automatically loop! (wt = wavetable)</p>",
+    signatures: [
+      {
+        label: "loopBegin(time)",
+        parameters: [
+          {
+            label: "number time",
+            documentation:
+              "<p>between 0 and 1, where 1 is the length of the sample</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "loopEnd",
+    detail: "loopEnd/samples",
+    documentation:
+      "<p>End the looping section at a specific point in the sample (inbetween <code>begin</code> and <code>end</code>).\nNote that the loop point must be inbetween <code>begin</code> and <code>end</code>, and after <code>loopBegin</code>!</p>",
+    signatures: [
+      {
+        label: "loopEnd(time)",
+        parameters: [
+          {
+            label: "number time",
+            documentation:
+              "<p>between 0 and 1, where 1 is the length of the sample</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "crush",
+    detail: "crush/superdough",
+    documentation: "<p>Bit crusher effect.</p>",
+    signatures: [
+      {
+        label: "crush(depth)",
+        parameters: [
+          {
+            label: "number depth",
+            documentation:
+              "<p>between 1 (for drastic reduction in bit-depth) to 16 (for barely no reduction).</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "coarse",
+    detail: "coarse/superdough",
+    documentation:
+      "<p>Fake-resampling for lowering the sample rate. Caution: This effect seems to only work in chromium based browsers</p>",
+    signatures: [
+      {
+        label: "coarse(factor)",
+        parameters: [
+          {
+            label: "number factor",
+            documentation:
+              "<p>1 for original 2 for half, 3 for a third and so on.</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "tremolo",
+    detail: "tremolo/amplitude,lfo,superdough",
+    documentation:
+      "<p>Modulate the amplitude of a sound with a continuous waveform</p>",
+    signatures: [
+      {
+        label: "tremolo(speed)",
+        parameters: [
+          {
+            label: "number speed",
+            documentation: "<p>modulation speed in HZ</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "tremolosync",
+    detail: "tremolosync/amplitude,lfo,superdough",
+    documentation:
+      "<p>Modulate the amplitude of a sound with a continuous waveform</p>",
+    signatures: [
+      {
+        label: "tremolosync(cycles)",
+        parameters: [
+          {
+            label: "number cycles",
+            documentation: "<p>modulation speed in cycles</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "tremolodepth",
+    detail: "tremolodepth/amplitude,lfo,superdough",
+    documentation: "<p>Depth of amplitude modulation</p>",
+    signatures: [
+      {
+        label: "tremolodepth(depth)",
+        parameters: [
+          {
+            label: "number depth",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "tremoloskew",
+    detail: "tremoloskew/amplitude,lfo,superdough",
+    documentation: "<p>Alter the shape of the modulation waveform</p>",
+    signatures: [
+      {
+        label: "tremoloskew(amount)",
+        parameters: [
+          {
+            label: "number amount",
+            documentation:
+              "<p>between 0 &amp; 1, the shape of the waveform</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "tremolophase",
+    detail: "tremolophase/amplitude,lfo,superdough",
+    documentation: "<p>Alter the phase of the modulation waveform</p>",
+    signatures: [
+      {
+        label: "tremolophase(offset)",
+        parameters: [
+          {
+            label: "number offset",
+            documentation: "<p>the offset in cycles of the modulation</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "tremoloshape",
+    detail: "tremoloshape/amplitude,lfo,superdough",
+    documentation: "<p>Shape of amplitude modulation</p>",
+    signatures: [
+      {
+        label: "tremoloshape(shape)",
+        parameters: [
+          {
+            label: "number shape",
+            documentation: "<p>tri | square | sine | saw | ramp</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "drive",
+    detail: "drive/filter,superdough",
+    documentation: "<p>Filter overdrive for supported filter types</p>",
+    signatures: [
+      {
+        label: "drive(amount)",
+        parameters: [
+          {
+            label: "number amount",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "duckorbit",
+    detail: "duckorbit/amplitude,orbit,superdough",
+    documentation:
+      "<p>Modulate the amplitude of an orbit to create a &quot;sidechain&quot; like effect.</p>\n<p>Can be applied to multiple orbits with the ':' mininotation, e.g. <code>duckorbit(&quot;2:3&quot;)</code></p>",
+    signatures: [
+      {
+        label: "duckorbit(orbit)",
+        parameters: [
+          {
+            label: "number orbit",
+            documentation: "<p>target orbit</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "duckdepth",
+    detail: "duckdepth/amplitude,orbit,superdough",
+    documentation:
+      "<p>The amount of ducking applied to target orbit</p>\n<p>Can vary across orbits with the ':' mininotation, e.g. <code>duckdepth(&quot;0.3:0.1&quot;)</code>.\nNote: this requires first applying the effect to multiple orbits with e.g. <code>duckorbit(&quot;2:3&quot;)</code>.</p>",
+    signatures: [
+      {
+        label: "duckdepth(depth)",
+        parameters: [
+          {
+            label: "number depth",
+            documentation: "<p>depth of modulation from 0 to 1</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "duckonset",
+    detail: "duckonset/amplitude,envelope,orbit,superdough",
+    documentation:
+      "<p>The time required for the ducked signal(s) to reach their lowest volume.\nCan be used to prevent clicking or for creative rhythmic effects.</p>\n<p>Can vary across orbits with the ':' mininotation, e.g. <code>duckonset(&quot;0:0.003&quot;)</code>.\nNote: this requires first applying the effect to multiple orbits with e.g. <code>duckorbit(&quot;2:3&quot;)</code>.</p>",
+    signatures: [
+      {
+        label: "duckonset(time)",
+        parameters: [
+          {
+            label: "number time",
+            documentation: "<p>The onset time in seconds</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "duckattack",
+    detail: "duckattack/amplitude,envelope,orbit,superdough",
+    documentation:
+      "<p>The time required for the ducked signal(s) to return to their normal volume.</p>\n<p>Can vary across orbits with the ':' mininotation, e.g. <code>duckonset(&quot;0:0.003&quot;)</code>.\nNote: this requires first applying the effect to multiple orbits with e.g. <code>duckorbit(&quot;2:3&quot;)</code>.</p>",
+    signatures: [
+      {
+        label: "duckattack(time)",
+        parameters: [
+          {
+            label: "number time",
+            documentation: "<p>The attack time in seconds</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "byteBeatExpression",
+    detail: "byteBeatExpression/superdough",
+    documentation: "<p>Create byte beats with custom expressions</p>",
+    signatures: [
+      {
+        label: "byteBeatExpression(byteBeatExpression)",
+        parameters: [
+          {
+            label: "number byteBeatExpression",
+            documentation: "<p>bitwise expression for creating bytebeat</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "byteBeatStartTime",
+    detail: "byteBeatStartTime/superdough",
+    documentation: "<p>Create byte beats with custom expressions</p>",
+    signatures: [
+      {
+        label: "byteBeatStartTime(byteBeatStartTime)",
+        parameters: [
+          {
+            label: "number byteBeatStartTime",
+            documentation: "<p>in samples (t)</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "channels",
+    detail: "channels/external_io,superdough",
+    documentation:
+      "<p>Allows you to set the output channels on the interface</p>",
+    signatures: [
+      {
+        label: "channels(channels)",
+        parameters: [
+          {
+            label: "number channels",
+            documentation: "<p>pattern the output channels</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "pw",
+    detail: "pw/superdough",
+    documentation: "<p>Controls the pulsewidth of the pulse oscillator</p>",
+    signatures: [
+      {
+        label: "pw(pulsewidth)",
+        parameters: [
+          {
+            label: "number pulsewidth",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "pwrate",
+    detail: "pwrate/superdough,lfo",
+    documentation:
+      "<p>Controls the lfo rate for the pulsewidth of the pulse oscillator</p>",
+    signatures: [
+      {
+        label: "pwrate(rate)",
+        parameters: [
+          {
+            label: "number rate",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "pwsweep",
+    detail: "pwsweep/superdough,lfo",
+    documentation:
+      "<p>Controls the lfo sweep for the pulsewidth of the pulse oscillator</p>",
+    signatures: [
+      {
+        label: "pwsweep(sweep)",
+        parameters: [
+          {
+            label: "number sweep",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "phaser",
+    detail: "phaser/superdough",
+    documentation:
+      "<p>Phaser audio effect that approximates popular guitar pedals.</p>",
+    signatures: [
+      {
+        label: "phaser(speed)",
+        parameters: [
+          {
+            label: "number speed",
+            documentation: "<p>speed of modulation</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "phasersweep",
+    detail: "phasersweep/superdough,lfo",
+    documentation:
+      "<p>The frequency sweep range of the lfo for the phaser effect. Defaults to 2000</p>",
+    signatures: [
+      {
+        label: "phasersweep(phasersweep)",
+        parameters: [
+          {
+            label: "number phasersweep",
+            documentation: "<p>most useful values are between 0 and 4000</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "phasercenter",
+    detail: "phasercenter/superdough",
+    documentation:
+      "<p>The center frequency of the phaser in HZ. Defaults to 1000</p>",
+    signatures: [
+      {
+        label: "phasercenter(centerfrequency)",
+        parameters: [
+          {
+            label: "number centerfrequency",
+            documentation: "<p>in HZ</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "phaserdepth",
+    detail: "phaserdepth/superdough,superdirt",
+    documentation:
+      "<p>The amount the signal is affected by the phaser effect. Defaults to 0.75</p>",
+    signatures: [
+      {
+        label: "phaserdepth(depth)",
+        parameters: [
+          {
+            label: "number depth",
+            documentation: "<p>number between 0 and 1</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "channel",
+    detail: "channel/superdough",
+    documentation: "<p>Choose the channel the pattern is sent to</p>",
+    signatures: [
+      {
+        label: "channel(channel)",
+        parameters: [
+          {
+            label: "number channel",
+            documentation: "<p>channel number</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "cut",
+    detail: "cut/superdough",
+    documentation:
+      "<p>In the style of classic drum-machines, <code>cut</code> will stop a playing sample as soon as another samples with in same cutgroup is to be played. An example would be an open hi-hat followed by a closed one, essentially muting the open.</p>",
+    signatures: [
+      {
+        label: "cut(group)",
+        parameters: [
+          {
+            label: "number group",
+            documentation: "<p>cut group number</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "lpf",
+    detail: "lpf/filter,superdough",
+    documentation:
+      "<p>Applies the cutoff frequency of the <strong>l</strong>ow-<strong>p</strong>ass <strong>f</strong>ilter.</p>\n<p>When using mininotation, you can also optionally add the 'lpq' parameter, separated by ':'.</p>",
+    signatures: [
+      {
+        label: "lpf(frequency)",
+        parameters: [
+          {
+            label: "number frequency",
+            documentation: "<p>audible between 0 and 20000</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "lpenv",
+    detail: "lpenv/filter,envelope,superdough",
+    documentation: "<p>Sets the lowpass filter envelope modulation depth.</p>",
+    signatures: [
+      {
+        label: "lpenv(modulation)",
+        parameters: [
+          {
+            label: "number modulation",
+            documentation:
+              "<p>depth of the lowpass filter envelope between 0 and <em>n</em></p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "hpenv",
+    detail: "hpenv/filter,envelope,superdough",
+    documentation: "<p>Sets the highpass filter envelope modulation depth.</p>",
+    signatures: [
+      {
+        label: "hpenv(modulation)",
+        parameters: [
+          {
+            label: "number modulation",
+            documentation:
+              "<p>depth of the highpass filter envelope between 0 and <em>n</em></p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "bpenv",
+    detail: "bpenv/filter,envelope,superdough",
+    documentation: "<p>Sets the bandpass filter envelope modulation depth.</p>",
+    signatures: [
+      {
+        label: "bpenv(modulation)",
+        parameters: [
+          {
+            label: "number modulation",
+            documentation:
+              "<p>depth of the bandpass filter envelope between 0 and <em>n</em></p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "lpattack",
+    detail: "lpattack/filter,envelope,superdough",
+    documentation:
+      "<p>Sets the attack duration for the lowpass filter envelope.</p>",
+    signatures: [
+      {
+        label: "lpattack(attack)",
+        parameters: [
+          {
+            label: "number attack",
+            documentation: "<p>time of the filter envelope</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "hpattack",
+    detail: "hpattack/filter,envelope,superdough",
+    documentation:
+      "<p>Sets the attack duration for the highpass filter envelope.</p>",
+    signatures: [
+      {
+        label: "hpattack(attack)",
+        parameters: [
+          {
+            label: "number attack",
+            documentation: "<p>time of the highpass filter envelope</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "bpattack",
+    detail: "bpattack/filter,envelope,superdough",
+    documentation:
+      "<p>Sets the attack duration for the bandpass filter envelope.</p>",
+    signatures: [
+      {
+        label: "bpattack(attack)",
+        parameters: [
+          {
+            label: "number attack",
+            documentation: "<p>time of the bandpass filter envelope</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "lpdecay",
+    detail: "lpdecay/filter,envelope,superdough",
+    documentation:
+      "<p>Sets the decay duration for the lowpass filter envelope.</p>",
+    signatures: [
+      {
+        label: "lpdecay(decay)",
+        parameters: [
+          {
+            label: "number decay",
+            documentation: "<p>time of the filter envelope</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "hpdecay",
+    detail: "hpdecay/filter,envelope,superdough",
+    documentation:
+      "<p>Sets the decay duration for the highpass filter envelope.</p>",
+    signatures: [
+      {
+        label: "hpdecay(decay)",
+        parameters: [
+          {
+            label: "number decay",
+            documentation: "<p>time of the highpass filter envelope</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "bpdecay",
+    detail: "bpdecay/filter,envelope,superdough",
+    documentation:
+      "<p>Sets the decay duration for the bandpass filter envelope.</p>",
+    signatures: [
+      {
+        label: "bpdecay(decay)",
+        parameters: [
+          {
+            label: "number decay",
+            documentation: "<p>time of the bandpass filter envelope</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "lpsustain",
+    detail: "lpsustain/filter,envelope,superdough",
+    documentation:
+      "<p>Sets the sustain amplitude for the lowpass filter envelope.</p>",
+    signatures: [
+      {
+        label: "lpsustain(sustain)",
+        parameters: [
+          {
+            label: "number sustain",
+            documentation: "<p>amplitude of the lowpass filter envelope</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "hpsustain",
+    detail: "hpsustain/filter,envelope,superdough",
+    documentation:
+      "<p>Sets the sustain amplitude for the highpass filter envelope.</p>",
+    signatures: [
+      {
+        label: "hpsustain(sustain)",
+        parameters: [
+          {
+            label: "number sustain",
+            documentation: "<p>amplitude of the highpass filter envelope</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "bpsustain",
+    detail: "bpsustain/filter,envelope,superdough",
+    documentation:
+      "<p>Sets the sustain amplitude for the bandpass filter envelope.</p>",
+    signatures: [
+      {
+        label: "bpsustain(sustain)",
+        parameters: [
+          {
+            label: "number sustain",
+            documentation: "<p>amplitude of the bandpass filter envelope</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "lprelease",
+    detail: "lprelease/filter,envelope,superdough",
+    documentation:
+      "<p>Sets the release time for the lowpass filter envelope.</p>",
+    signatures: [
+      {
+        label: "lprelease(release)",
+        parameters: [
+          {
+            label: "number release",
+            documentation: "<p>time of the filter envelope</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "hprelease",
+    detail: "hprelease/filter,envelope,superdough",
+    documentation:
+      "<p>Sets the release time for the highpass filter envelope.</p>",
+    signatures: [
+      {
+        label: "hprelease(release)",
+        parameters: [
+          {
+            label: "number release",
+            documentation: "<p>time of the highpass filter envelope</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "bprelease",
+    detail: "bprelease/filter,envelope,superdough",
+    documentation:
+      "<p>Sets the release time for the bandpass filter envelope.</p>",
+    signatures: [
+      {
+        label: "bprelease(release)",
+        parameters: [
+          {
+            label: "number release",
+            documentation: "<p>time of the bandpass filter envelope</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "ftype",
+    detail: "ftype/filter,superdough",
+    documentation:
+      "<p>Sets the filter type. The ladder filter is more aggressive. More types might be added in the future.</p>",
+    signatures: [
+      {
+        label: "ftype(type)",
+        parameters: [
+          {
+            label: "number type",
+            documentation: "<p>12db (0), ladder (1), or 24db (2)</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "fanchor",
+    detail: "fanchor/filter,envelope,superdough",
+    documentation:
+      "<p>controls the center of the filter envelope. 0 is unipolar positive, .5 is bipolar, 1 is unipolar negative</p>",
+    signatures: [
+      {
+        label: "fanchor(center)",
+        parameters: [
+          {
+            label: "number center",
+            documentation: "<p>0 to 1</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "hpf",
+    detail: "hpf/filter,superdough",
+    documentation:
+      "<p>Applies the cutoff frequency of the <strong>h</strong>igh-<strong>p</strong>ass <strong>f</strong>ilter.</p>\n<p>When using mininotation, you can also optionally add the 'hpq' parameter, separated by ':'.</p>",
+    signatures: [
+      {
+        label: "hpf(frequency)",
+        parameters: [
+          {
+            label: "number frequency",
+            documentation: "<p>audible between 0 and 20000</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "lprate",
+    detail: "lprate/filter,lfo,superdough",
+    documentation: "<p>Rate of the LFO for the lowpass filter</p>",
+    signatures: [
+      {
+        label: "lprate(rate)",
+        parameters: [
+          {
+            label: "number rate",
+            documentation: "<p>rate in hertz</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "lpsync",
+    detail: "lpsync/filter,lfo,superdough",
+    documentation: "<p>Cycle-synced rate of the LFO for the lowpass filter</p>",
+    signatures: [
+      {
+        label: "lpsync(rate)",
+        parameters: [
+          {
+            label: "number rate",
+            documentation: "<p>rate in cycles</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "lpdepth",
+    detail: "lpdepth/filter,lfo,superdough",
+    documentation: "<p>Depth of the LFO for the lowpass filter</p>",
+    signatures: [
+      {
+        label: "lpdepth(depth)",
+        parameters: [
+          {
+            label: "number depth",
+            documentation: "<p>depth of modulation</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "lpdepthfrequency",
+    detail: "lpdepthfrequency/filter,lfo,superdough",
+    documentation: "<p>Depth of the LFO for the lowpass filter, in HZ</p>",
+    signatures: [
+      {
+        label: "lpdepthfrequency(depth)",
+        parameters: [
+          {
+            label: "number depth",
+            documentation: "<p>depth of modulation</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "lpshape",
+    detail: "lpshape/filter,lfo,superdough",
+    documentation: "<p>Shape of the LFO for the lowpass filter</p>",
+    signatures: [
+      {
+        label: "lpshape(shape)",
+        parameters: [
+          {
+            label: "number shape",
+            documentation: "<p>Shape of the lfo (0, 1, 2, ..)</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "lpdc",
+    detail: "lpdc/filter,lfo,superdough",
+    documentation: "<p>DC offset of the LFO for the lowpass filter</p>",
+    signatures: [
+      {
+        label: "lpdc(dcoffset)",
+        parameters: [
+          {
+            label: "number dcoffset",
+            documentation: "<p>dc offset. set to 0 for unipolar</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "lpskew",
+    detail: "lpskew/filter,lfo,superdough",
+    documentation: "<p>Skew of the LFO for the lowpass filter</p>",
+    signatures: [
+      {
+        label: "lpskew(skew)",
+        parameters: [
+          {
+            label: "number skew",
+            documentation: "<p>How much to bend the LFO shape</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "bprate",
+    detail: "bprate/filter,lfo,superdough",
+    documentation: "<p>Rate of the LFO for the bandpass filter</p>",
+    signatures: [
+      {
+        label: "bprate(rate)",
+        parameters: [
+          {
+            label: "number rate",
+            documentation: "<p>rate in hertz</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "bpsync",
+    detail: "bpsync/filter,lfo,superdough",
+    documentation:
+      "<p>Cycle-synced rate of the LFO for the bandpass filter</p>",
+    signatures: [
+      {
+        label: "bpsync(rate)",
+        parameters: [
+          {
+            label: "number rate",
+            documentation: "<p>rate in cycles</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "bpdepth",
+    detail: "bpdepth/filter,lfo,superdough",
+    documentation: "<p>Depth of the LFO for the bandpass filter</p>",
+    signatures: [
+      {
+        label: "bpdepth(depth)",
+        parameters: [
+          {
+            label: "number depth",
+            documentation: "<p>depth of modulation</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "bpdepthfrequency",
+    detail: "bpdepthfrequency/filter,lfo,superdough",
+    documentation: "<p>Depth of the LFO for the bandpass filter, in HZ</p>",
+    signatures: [
+      {
+        label: "bpdepthfrequency(depth)",
+        parameters: [
+          {
+            label: "number depth",
+            documentation: "<p>depth of modulation</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "bpshape",
+    detail: "bpshape/filter,lfo,superdough",
+    documentation: "<p>Shape of the LFO for the bandpass filter</p>",
+    signatures: [
+      {
+        label: "bpshape(shape)",
+        parameters: [
+          {
+            label: "number shape",
+            documentation: "<p>Shape of the lfo (0, 1, 2, ..)</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "bpdc",
+    detail: "bpdc/filter,lfo,superdough",
+    documentation: "<p>DC offset of the LFO for the bandpass filter</p>",
+    signatures: [
+      {
+        label: "bpdc(dcoffset)",
+        parameters: [
+          {
+            label: "number dcoffset",
+            documentation: "<p>dc offset. set to 0 for unipolar</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "bpskew",
+    detail: "bpskew/filter,lfo,superdough",
+    documentation: "<p>Skew of the LFO for the bandpass filter</p>",
+    signatures: [
+      {
+        label: "bpskew(skew)",
+        parameters: [
+          {
+            label: "number skew",
+            documentation: "<p>How much to bend the LFO shape</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "hprate",
+    detail: "hprate/filter,lfo,superdough",
+    documentation: "<p>Rate of the LFO for the highpass filter</p>",
+    signatures: [
+      {
+        label: "hprate(rate)",
+        parameters: [
+          {
+            label: "number rate",
+            documentation: "<p>rate in hertz</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "hpsync",
+    detail: "hpsync/filter,lfo,superdough",
+    documentation:
+      "<p>Cycle-synced rate of the LFO for the highpass filter</p>",
+    signatures: [
+      {
+        label: "hpsync(rate)",
+        parameters: [
+          {
+            label: "number rate",
+            documentation: "<p>rate in cycles</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "hpdepth",
+    detail: "hpdepth/filter,lfo,superdough",
+    documentation: "<p>Depth of the LFO for the highpass filter</p>",
+    signatures: [
+      {
+        label: "hpdepth(depth)",
+        parameters: [
+          {
+            label: "number depth",
+            documentation: "<p>depth of modulation</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "hpdepthfrequency",
+    detail: "hpdepthfrequency/filter,lfo,superdough",
+    documentation: "<p>Depth of the LFO for the hipass filter, in hz</p>",
+    signatures: [
+      {
+        label: "hpdepthfrequency(depth)",
+        parameters: [
+          {
+            label: "number depth",
+            documentation: "<p>depth of modulation</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "hpshape",
+    detail: "hpshape/filter,lfo,superdough",
+    documentation: "<p>Shape of the LFO for the highpass filter</p>",
+    signatures: [
+      {
+        label: "hpshape(shape)",
+        parameters: [
+          {
+            label: "number shape",
+            documentation: "<p>Shape of the lfo (0, 1, 2, ..)</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "hpdc",
+    detail: "hpdc/filter,lfo,superdough",
+    documentation: "<p>DC offset of the LFO for the highpass filter</p>",
+    signatures: [
+      {
+        label: "hpdc(dcoffset)",
+        parameters: [
+          {
+            label: "number dcoffset",
+            documentation: "<p>dc offset. set to 0 for unipolar</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "hpskew",
+    detail: "hpskew/filter,lfo,superdough",
+    documentation: "<p>Skew of the LFO for the highpass filter</p>",
+    signatures: [
+      {
+        label: "hpskew(skew)",
+        parameters: [
+          {
+            label: "number skew",
+            documentation: "<p>How much to bend the LFO shape</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "vib",
+    detail: "vib/pitch,lfo,superdough",
+    documentation:
+      "<p>Applies a vibrato to the frequency of the oscillator.</p>",
+    signatures: [
+      {
+        label: "vib(frequency)",
+        parameters: [
+          {
+            label: "number frequency",
+            documentation: "<p>of the vibrato in hertz</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "noise",
+    detail: "noise/generators,superdough",
+    documentation: "<p>Adds pink noise to the mix</p>",
+    signatures: [
+      {
+        label: "noise(wet)",
+        parameters: [
+          {
+            label: "number wet",
+            documentation: "<p>wet amount</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "vibmod",
+    detail: "vibmod/pitch,lfo,superdough",
+    documentation:
+      "<p>Sets the vibrato depth in semitones. Only has an effect if <code>vibrato</code> | <code>vib</code> | <code>v</code> is is also set</p>",
+    signatures: [
+      {
+        label: "vibmod(depth)",
+        parameters: [
+          {
+            label: "number depth",
+            documentation: "<p>of vibrato (in semitones)</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "hpq",
+    detail: "hpq/filter,superdough",
+    documentation:
+      "<p>Controls the <strong>h</strong>igh-<strong>p</strong>ass <strong>q</strong>-value.</p>",
+    signatures: [
+      {
+        label: "hpq(q)",
+        parameters: [
+          {
+            label: "number q",
+            documentation: "<p>resonance factor between 0 and 50</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "lpq",
+    detail: "lpq/filter,superdough",
+    documentation:
+      "<p>Controls the <strong>l</strong>ow-<strong>p</strong>ass <strong>q</strong>-value.</p>",
+    signatures: [
+      {
+        label: "lpq(q)",
+        parameters: [
+          {
+            label: "number q",
+            documentation: "<p>resonance factor between 0 and 50</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "djf",
+    detail: "djf/filter,superdough",
+    documentation:
+      "<p>DJ filter, below 0.5 is low pass filter, above is high pass filter.</p>",
+    signatures: [
+      {
+        label: "djf(cutoff)",
+        parameters: [
+          {
+            label: "number cutoff",
+            documentation:
+              "<p>below 0.5 is low pass filter, above is high pass filter</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "delay",
+    detail: "delay/orbit,superdough",
+    documentation:
+      "<p>Sets the level of the delay signal.</p>\n<p>When using mininotation, you can also optionally add the 'delaytime' and 'delayfeedback' parameter,\nseparated by ':'.</p>",
+    signatures: [
+      {
+        label: "delay(level)",
+        parameters: [
+          {
+            label: "number level",
+            documentation: "<p>between 0 and 1</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "delayfeedback",
+    detail: "delayfeedback/orbit,superdough",
+    documentation:
+      "<p>Sets the level of the signal that is fed back into the delay.\nCaution: Values &gt;= 1 will result in a signal that gets louder and louder! Don't do it</p>",
+    signatures: [
+      {
+        label: "delayfeedback(feedback)",
+        parameters: [
+          {
+            label: "number feedback",
+            documentation: "<p>between 0 and 1</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "delaytime",
+    detail: "delaytime/orbit,superdough",
+    documentation: "<p>Sets the time of the delay effect in seconds.</p>",
+    signatures: [
+      {
+        label: "delaytime(delay)",
+        parameters: [
+          {
+            label: "number delay",
+            documentation: "<p>in seconds</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "delaysync",
+    detail: "delaysync/orbit,superdough",
+    documentation: "<p>Sets the time of the delay effect in cycles.</p>",
+    signatures: [
+      {
+        label: "delaysync(cycles)",
+        parameters: [
+          {
+            label: "number cycles",
+            documentation: "<p>delay length in cycles</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "lock",
+    detail: "lock/superdirt,superdirtonly",
+    documentation:
+      "<p>Specifies whether delaytime is calculated relative to cps.</p>",
+    signatures: [
+      {
+        label: "lock(enable)",
+        parameters: [
+          {
+            label: "number enable",
+            documentation:
+              "<p>When set to 1, delaytime is a direct multiple of a cycle.</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "detune",
+    detail: "detune/pitch,superdough",
+    documentation:
+      "<p>Set detune for stacked voices of supported oscillators.</p>",
+    signatures: [
+      {
+        label: "detune(amount)",
+        parameters: [
+          {
+            label: "number amount",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "unison",
+    detail: "unison/superdough",
+    documentation:
+      "<p>Set number of stacked voices for supported oscillators.</p>",
+    signatures: [
+      {
+        label: "unison(numvoices)",
+        parameters: [
+          {
+            label: "number numvoices",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "spread",
+    detail: "spread/superdough",
+    documentation: "<p>Set the stereo pan spread for supported oscillators</p>",
+    signatures: [
+      {
+        label: "spread(spread)",
+        parameters: [
+          {
+            label: "number spread",
+            documentation: "<p>between 0 and 1</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "dry",
+    detail: "dry/superdirt,superdough",
+    documentation:
+      "<p>Set dryness of reverb. See <code>room</code> and <code>size</code> for more information about reverb.</p>",
+    signatures: [
+      {
+        label: "dry(dry)",
+        parameters: [
+          {
+            label: "number dry",
+            documentation: "<p>0 = wet, 1 = dry</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "fadeTime",
+    detail: "fadeTime/superdirt",
+    documentation:
+      "<p>Used when using <code>begin</code>/<code>end</code> or <code>chop</code>/<code>striate</code> and friends, to change the fade out time of the 'grain' envelope.</p>",
+    signatures: [
+      {
+        label: "fadeTime(time)",
+        parameters: [
+          {
+            label: "number time",
+            documentation: "<p>between 0 and 1</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "freq",
+    detail: "freq/pitch,superdough",
+    documentation: "<p>Set frequency of sound.</p>",
+    signatures: [
+      {
+        label: "freq(frequency)",
+        parameters: [
+          {
+            label: "number frequency",
+            documentation:
+              "<p>in Hz. the audible range is between 20 and 20000 Hz</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "pattack",
+    detail: "pattack/pitch,envelope,superdough",
+    documentation: "<p>Attack time of pitch envelope.</p>",
+    signatures: [
+      {
+        label: "pattack(time)",
+        parameters: [
+          {
+            label: "number time",
+            documentation: "<p>time in seconds</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "pdecay",
+    detail: "pdecay/pitch,envelope,superdough",
+    documentation: "<p>Decay time of pitch envelope.</p>",
+    signatures: [
+      {
+        label: "pdecay(time)",
+        parameters: [
+          {
+            label: "number time",
+            documentation: "<p>time in seconds</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "prelease",
+    detail: "prelease/pitch,envelope,superdough",
+    documentation: "<p>Release time of pitch envelope</p>",
+    signatures: [
+      {
+        label: "prelease(time)",
+        parameters: [
+          {
+            label: "number time",
+            documentation: "<p>time in seconds</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "penv",
+    detail: "penv/pitch,envelope,superdough",
+    documentation:
+      "<p>Amount of pitch envelope. Negative values will flip the envelope.\nIf you don't set other pitch envelope controls, <code>pattack:.2</code> will be the default.</p>",
+    signatures: [
+      {
+        label: "penv(semitones)",
+        parameters: [
+          {
+            label: "number semitones",
+            documentation: "<p>change in semitones</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "pcurve",
+    detail: "pcurve/pitch,envelope,superdough",
+    documentation:
+      "<p>Curve of envelope. Defaults to linear. exponential is good for kicks</p>",
+    signatures: [
+      {
+        label: "pcurve(type)",
+        parameters: [
+          {
+            label: "number type",
+            documentation: "<p>0 = linear, 1 = exponential</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "panchor",
+    detail: "panchor/pitch,envelope,superdough",
+    documentation:
+      "<p>Sets the range anchor of the envelope:</p>\n<ul>\n<li>anchor 0: range = [note, note + penv]</li>\n<li>anchor 1: range = [note - penv, note]\nIf you don't set an anchor, the value will default to the psustain value.</li>\n</ul>",
+    signatures: [
+      {
+        label: "panchor(anchor)",
+        parameters: [
+          {
+            label: "number anchor",
+            documentation: "<p>anchor offset</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "leslie",
+    detail: "leslie/superdirt,superdirtonly",
+    documentation:
+      "<p>Emulation of a Leslie speaker: speakers rotating in a wooden amplified cabinet.</p>",
+    signatures: [
+      {
+        label: "leslie(wet)",
+        parameters: [
+          {
+            label: "number wet",
+            documentation: "<p>between 0 and 1</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "lrate",
+    detail: "lrate/superdirt,superdirtonly",
+    documentation: "<p>Rate of modulation / rotation for leslie effect</p>",
+    signatures: [
+      {
+        label: "lrate(rate)",
+        parameters: [
+          {
+            label: "number rate",
+            documentation: "<p>6.7 for fast, 0.7 for slow</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "lsize",
+    detail: "lsize/superdirt,superdirtonly",
+    documentation:
+      "<p>Physical size of the cabinet in meters. Be careful, it might be slightly larger than your computer. Affects the Doppler amount (pitch warble)</p>",
+    signatures: [
+      {
+        label: "lsize(meters)",
+        parameters: [
+          {
+            label: "number meters",
+            documentation: "<p>somewhere between 0 and 1</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "label",
+    detail: "label/visualization",
+    documentation:
+      "<p>Sets the displayed text for an event on the pianoroll</p>",
+    signatures: [
+      {
+        label: "label(label)",
+        parameters: [
+          {
+            label: "string label",
+            documentation: "<p>text to display</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "octave",
+    detail: "octave/superdirt",
+    documentation: "<p>Sets the default octave of a synth.</p>",
+    signatures: [
+      {
+        label: "octave(octave)",
+        parameters: [
+          {
+            label: "number octave",
+            documentation: "<p>octave number</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "orbit",
+    detail: "orbit/superdough",
+    documentation:
+      "<p>An <code>orbit</code> is a global parameter context for patterns. Patterns with the same orbit will share the same global effects.</p>",
+    signatures: [
+      {
+        label: "orbit(number)",
+        parameters: [
+          {
+            label: "number number",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "bus",
+    detail: "bus/superdough",
+    documentation:
+      "<p>A <code>bus</code> is a send which can be used for mixing patterns. It combines with..\ns(&quot;bus&quot;) to play that bus through another pattern (for, say, applying non-linear\neffects like distortion to multiple signals)</p>\n<p>otherPat.bmod(..) (to modulate another pattern with the bus)</p>",
+    signatures: [
+      {
+        label: "bus(number)",
+        parameters: [
+          {
+            label: "number number",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "busgain",
+    detail: "busgain/superdough",
+    documentation:
+      "<p>Postgain multiplier prior to sending the signal to the audio bus.</p>",
+    signatures: [
+      {
+        label: "busgain(number)",
+        parameters: [
+          {
+            label: "number number",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "pan",
+    detail: "pan/superdough",
+    documentation: "<p>Sets position in stereo.</p>",
+    signatures: [
+      {
+        label: "pan(pan)",
+        parameters: [
+          {
+            label: "number pan",
+            documentation:
+              "<p>between 0 and 1, from left to right (assuming stereo), once round a circle (assuming multichannel)</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "panspan",
+    detail: "panspan/superdirt",
+    documentation: "<p>Controls how much multichannel output is fanned out</p>",
+    signatures: [
+      {
+        label: "panspan(span)",
+        parameters: [
+          {
+            label: "number span",
+            documentation:
+              "<p>between -inf and inf, negative is backwards ordering</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "pansplay",
+    detail: "pansplay/superdirt",
+    documentation: "<p>Controls how much multichannel output is spread</p>",
+    signatures: [
+      {
+        label: "pansplay(spread)",
+        parameters: [
+          {
+            label: "number spread",
+            documentation: "<p>between 0 and 1</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "chord",
+    detail: "chord/tonal",
+    documentation: "<p>The chord to voice</p>",
+    signatures: [
+      {
+        label: "chord(symbols)",
+        parameters: [
+          {
+            label: "string symbols",
+            documentation:
+              "<p>chord symbols to voice e.g., C, Eb, Fm7, G7. The symbols can be defined via addVoicings</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "dictionary",
+    detail: "dictionary/tonal",
+    documentation:
+      "<p>Which dictionary to use for the voicings. This falls back to the default dictionary if not provided</p>",
+    signatures: [
+      {
+        label: "dictionary(dictionaryName)",
+        parameters: [
+          {
+            label: "string dictionaryName",
+            documentation:
+              "<p>which dictionary (having been defined with <code>addVoicings</code>) to use</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "anchor",
+    detail: "anchor/tonal",
+    documentation:
+      "<p>The top note to align the voicing to. Defaults to c5</p>",
+    signatures: [
+      {
+        label: "anchor(anchorNote)",
+        parameters: [
+          {
+            label: "string anchorNote",
+            documentation: "<p>the note to align the voicing or scale to</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "offset",
+    detail: "offset/tonal",
+    documentation:
+      "<p>Sets how the voicing is offset from the anchored position</p>",
+    signatures: [
+      {
+        label: "offset(shift)",
+        parameters: [
+          {
+            label: "number shift",
+            documentation: "<p>the amount to shift the voicing up or down</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "octaves",
+    detail: "octaves/tonal",
+    documentation:
+      "<p>How many octaves are voicing steps spread apart, defaults to 1</p>",
+    signatures: [
+      {
+        label: "octaves(count)",
+        parameters: [
+          {
+            label: "number count",
+            documentation: "<p>the number of octaves</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "mode",
+    detail: "mode/tonal",
+    documentation:
+      "<p>How the voicing is aligned to the anchor</p>\n<ul>\n<li>\n<p><code>below</code>: top note &lt;= anchor</p>\n</li>\n<li>\n<p><code>duck</code>: top note &lt;= anchor, anchor excluded</p>\n</li>\n<li>\n<p><code>above</code>: bottom note &gt;= anchor</p>\n</li>\n<li>\n<p><code>root</code>: bottom note is the lowest root of the chord &gt;= anchor</p>\n</li>\n<li>\n<p><code>oldabove</code> : old (buggy) behavior of above, kept for legacy reason</p>\n</li>\n<li>\n<p><code>oldroot</code> : old (buggy) behavior of root, kept for legacy reason</p>\n</li>\n</ul>",
+    signatures: [
+      {
+        label: "mode(modeName)",
+        parameters: [
+          {
+            label: "string modeName",
+            documentation:
+              "<p>one of {below | above | duck | root | oldabove | oldroot}</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "room",
+    detail: "room/orbit,superdough",
+    documentation:
+      "<p>Sets the level of reverb.</p>\n<p>When using mininotation, you can also optionally add the 'size' parameter, separated by ':'.</p>",
+    signatures: [
+      {
+        label: "room(level)",
+        parameters: [
+          {
+            label: "number level",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "roomlp",
+    detail: "roomlp/orbit,superdough",
+    documentation:
+      "<p>Reverb lowpass starting frequency (in hertz).\nWhen this property is changed, the reverb will be recaculated, so only change this sparsely..</p>",
+    signatures: [
+      {
+        label: "roomlp(frequency)",
+        parameters: [
+          {
+            label: "number frequency",
+            documentation: "<p>between 0 and 20000hz</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "roomdim",
+    detail: "roomdim/orbit,superdough",
+    documentation:
+      "<p>Reverb lowpass frequency at -60dB (in hertz).\nWhen this property is changed, the reverb will be recaculated, so only change this sparsely..</p>",
+    signatures: [
+      {
+        label: "roomdim(frequency)",
+        parameters: [
+          {
+            label: "number frequency",
+            documentation: "<p>between 0 and 20000hz</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "roomfade",
+    detail: "roomfade/orbit,superdough",
+    documentation:
+      "<p>Reverb fade time (in seconds).\nWhen this property is changed, the reverb will be recaculated, so only change this sparsely..</p>",
+    signatures: [
+      {
+        label: "roomfade(seconds)",
+        parameters: [
+          {
+            label: "number seconds",
+            documentation: "<p>for the reverb to fade</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "iresponse",
+    detail: "iresponse/orbit,superdough",
+    documentation:
+      "<p>Sets the sample to use as an impulse response for the reverb.</p>",
+    signatures: [
+      {
+        label: "iresponse(sample)",
+        parameters: [
+          {
+            label: "string sample",
+            documentation: "<p>to use as an impulse response</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "irspeed",
+    detail: "irspeed/orbit,superdough",
+    documentation: "<p>Sets speed of the sample for the impulse response.</p>",
+    signatures: [
+      {
+        label: "irspeed(speed)",
+        parameters: [
+          {
+            label: "string speed",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "irbegin",
+    detail: "irbegin/orbit,superdough",
+    documentation: "<p>Sets the beginning of the IR response sample</p>",
+    signatures: [
+      {
+        label: "irbegin(begin)",
+        parameters: [
+          {
+            label: "string begin",
+            documentation: "<p>between 0 and 1</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "roomsize",
+    detail: "roomsize/orbit,superdough",
+    documentation:
+      "<p>Sets the room size of the reverb, see <code>room</code>.\nWhen this property is changed, the reverb will be recaculated, so only change this sparsely..</p>",
+    signatures: [
+      {
+        label: "roomsize(size)",
+        parameters: [
+          {
+            label: "number size",
+            documentation: "<p>between 0 and 10</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "shape",
+    detail: "shape/distortion,superdough",
+    documentation:
+      "<p>(Deprecated) Wave shaping distortion. WARNING: can suddenly get unpredictably loud.\nPlease use distort instead, which has a more predictable response curve\nsecond option in optional array syntax (ex: &quot;.9:.5&quot;) applies a postgain to the output</p>",
+    signatures: [
+      {
+        label: "shape(distortion)",
+        parameters: [
+          {
+            label: "number distortion",
+            documentation: "<p>between 0 and 1</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "distort",
+    detail: "distort/distortion,superdough",
+    documentation:
+      "<p>Wave shaping distortion. CAUTION: it can get loud.\nSecond option in optional array syntax (ex: &quot;.9:.5&quot;) applies a postgain to the output. Third option sets the waveshaping type.\nMost useful values are usually between 0 and 10 (depending on source gain). If you are feeling adventurous, you can turn it up to 11 and beyond ;)</p>",
+    signatures: [
+      {
+        label: "distort(distortion, volume, type)",
+        parameters: [
+          {
+            label: "number distortion",
+            documentation: "<p>amount of distortion to apply</p>",
+          },
+          {
+            label: "number volume",
+            documentation: "<p>linear postgain of the distortion</p>",
+          },
+          {
+            label: "number type",
+            documentation: "<p>type of distortion to apply</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "distortvol",
+    detail: "distortvol/superdough",
+    documentation: "<p>Postgain for waveshaping distortion.</p>",
+    signatures: [
+      {
+        label: "distortvol(volume)",
+        parameters: [
+          {
+            label: "number volume",
+            documentation: "<p>linear postgain of the distortion</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "distorttype",
+    detail: "distorttype/distortion,superdough",
+    documentation: "<p>Type of waveshaping distortion to apply.</p>",
+    signatures: [
+      {
+        label: "distorttype(type)",
+        parameters: [
+          {
+            label: "number type",
+            documentation: "<p>type of distortion to apply</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "compressor",
+    detail: "compressor/superdough",
+    documentation:
+      '<p>Dynamics Compressor. The params are <code>compressor(&quot;threshold:ratio:knee:attack:release&quot;)</code>\nMore info <a href="https://developer.mozilla.org/en-US/docs/Web/API/DynamicsCompressorNode?retiredLocale=de#instance_properties">here</a></p>',
+    signatures: [
+      {
+        label: "compressor()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "speed",
+    detail: "speed/pitch,samples",
+    documentation:
+      "<p>Changes the speed of sample playback, i.e. a cheap way of changing pitch.</p>",
+    signatures: [
+      {
+        label: "speed(speed)",
+        parameters: [
+          {
+            label: "number speed",
+            documentation:
+              "<p>inf to inf, negative numbers play the sample backwards.</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "stretch",
+    detail: "stretch/pitch,samples",
+    documentation:
+      "<p>Changes the pitch of the sample without changing its speed.\nThe frequencies are multiplied by (factor + 1) for positive numbers\nand by max(factor / 4 + 1, 0) for negative numbers.\nSo tuning up by octaves can be done with 1, 3, 7, ...\nand tuning down by octaves with -2, -3, -3.5...</p>",
+    signatures: [
+      {
+        label: "stretch(factor)",
+        parameters: [
+          {
+            label: "number factor",
+            documentation:
+              "<p>between <code>-4</code> and <code>inf</code>. Positive increases pitch, 0 does nothing, negative decreases the pitch.</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "unit",
+    detail: "unit/superdirt,superdirtonly",
+    documentation:
+      "<p>Used in conjunction with <code>speed</code>, accepts values of &quot;r&quot; (rate, default behavior), &quot;c&quot; (cycles), or &quot;s&quot; (seconds). Using <code>unit &quot;c&quot;</code> means <code>speed</code> will be interpreted in units of cycles, e.g. <code>speed &quot;1&quot;</code> means samples will be stretched to fill a cycle. Using <code>unit &quot;s&quot;</code> means the playback speed will be adjusted so that the duration is the number of seconds specified by <code>speed</code>.</p>",
+    signatures: [
+      {
+        label: "unit(unit)",
+        parameters: [
+          {
+            label: "number unit",
+            documentation: "<p>see description above</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "squiz",
+    detail: "squiz/superdirt,superdirtonly",
+    documentation:
+      "<p>Made by Calum Gunn. Reminiscent of some weird mixture of filter, ring-modulator and pitch-shifter. The SuperCollider manual defines Squiz as:</p>\n<p>&quot;A simplistic pitch-raising algorithm. It's not meant to sound natural; its sound is reminiscent of some weird mixture of filter, ring-modulator and pitch-shifter, depending on the input. The algorithm works by cutting the signal into fragments (delimited by upwards-going zero-crossings) and squeezing those fragments in the time domain (i.e. simply playing them back faster than they came in), leaving silences inbetween. All the parameters apart from memlen can be modulated.&quot;</p>",
+    signatures: [
+      {
+        label: "squiz(squiz)",
+        parameters: [
+          {
+            label: "number squiz",
+            documentation:
+              "<p>Try passing multiples of 2 to it - 2, 4, 8 etc.</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "vowel",
+    detail: "vowel/superdough",
+    documentation: "<p>Formant filter to make things sound like vowels.</p>",
+    signatures: [
+      {
+        label: "vowel(vowel)",
+        parameters: [
+          {
+            label: "string vowel",
+            documentation:
+              "<p>You can use a e i o u ae aa oe ue y uh un en an on, corresponding to [a] [e] [i] [o] [u] [æ] [ɑ] [ø] [y] [ɯ] [ʌ] [œ̃] [ɛ̃] [ɑ̃] [ɔ̃]. Aliases: aa = å = ɑ, oe = ø = ö, y = ı, ae = æ.</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "density",
+    detail: "density/superdough",
+    documentation: "<p>crackle noise density</p>",
+    signatures: [
+      {
+        label: "density(density)",
+        parameters: [
+          {
+            label: "number density",
+            documentation: "<p>between 0 and x</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "clip",
+    detail: "clip/superdough",
+    documentation:
+      "<p>Multiplies the duration with the given number. Also cuts samples off at the end if they exceed the duration.</p>",
+    signatures: [
+      {
+        label: "clip(factor)",
+        parameters: [
+          {
+            label: "number factor",
+            documentation: "<blockquote>\n<p>= 0</p>\n</blockquote>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "duration",
+    detail: "duration/superdough",
+    documentation:
+      "<p>Sets the duration of the event in cycles. Similar to clip / legato, it also cuts samples off at the end if they exceed the duration.</p>",
+    signatures: [
+      {
+        label: "duration(seconds)",
+        parameters: [
+          {
+            label: "number seconds",
+            documentation: "<blockquote>\n<p>= 0</p>\n</blockquote>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "color",
+    detail: "color/visualization",
+    documentation:
+      "<p>Sets the color of the hap in visualizations like pianoroll or highlighting.</p>",
+    signatures: [
+      {
+        label: "color(color)",
+        parameters: [
+          {
+            label: "string color",
+            documentation: "<p>Hexadecimal or CSS color name</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "adsr",
+    detail: "adsr/envelope,amplitude",
+    documentation:
+      "<p>ADSR envelope: Combination of Attack, Decay, Sustain, and Release.</p>",
+    signatures: [
+      {
+        label: "adsr(time, time, gain, time)",
+        parameters: [
+          {
+            label: "number time",
+            documentation: "<p>attack time in seconds</p>",
+          },
+          {
+            label: "number time",
+            documentation: "<p>decay time in seconds</p>",
+          },
+          {
+            label: "number gain",
+            documentation: "<p>sustain level (0 to 1)</p>",
+          },
+          {
+            label: "number time",
+            documentation: "<p>release time in seconds</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "midichan",
+    detail: "midichan/external_io,midi",
+    documentation: "<p>MIDI channel: Sets the MIDI channel for the event.</p>",
+    signatures: [
+      {
+        label: "midichan(channel)",
+        parameters: [
+          {
+            label: "number channel",
+            documentation: "<p>MIDI channel number (0-15)</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "midiport",
+    detail: "midiport/external_io,midi",
+    documentation: "<p>MIDI port: Sets the MIDI port for the event.</p>",
+    signatures: [
+      {
+        label: "midiport(port)",
+        parameters: [
+          {
+            label: "number port",
+            documentation: "<p>MIDI port</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "midicmd",
+    detail: "midicmd/external_io,midi",
+    documentation: "<p>MIDI command: Sends a MIDI command message.</p>",
+    signatures: [
+      {
+        label: "midicmd(command)",
+        parameters: [
+          {
+            label: "number command",
+            documentation: "<p>MIDI command</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "control",
+    detail: "control/external_io,midi",
+    documentation: "<p>MIDI control: Sends a MIDI control change message.</p>",
+    signatures: [
+      {
+        label: "control(MIDI, MIDI)",
+        parameters: [
+          {
+            label: "number MIDI",
+            documentation: "<p>control number (0-127)</p>",
+          },
+          {
+            label: "number MIDI",
+            documentation: "<p>controller value (0-127)</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "ccn",
+    detail: "ccn/external_io,midi",
+    documentation:
+      "<p>MIDI control number: Sends a MIDI control change message.</p>",
+    signatures: [
+      {
+        label: "ccn(MIDI)",
+        parameters: [
+          {
+            label: "number MIDI",
+            documentation: "<p>control number (0-127)</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "ccv",
+    detail: "ccv/external_io,midi",
+    documentation:
+      "<p>MIDI control value: Sends a MIDI control change message.</p>",
+    signatures: [
+      {
+        label: "ccv(MIDI)",
+        parameters: [
+          {
+            label: "number MIDI",
+            documentation: "<p>control value (0-127)</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "nrpnn",
+    detail: "nrpnn/external_io,midi",
+    documentation:
+      "<p>MIDI NRPN non-registered parameter number: Sends a MIDI NRPN non-registered parameter number message.</p>",
+    signatures: [
+      {
+        label: "nrpnn(nrpnn)",
+        parameters: [
+          {
+            label: "number nrpnn",
+            documentation:
+              "<p>MIDI NRPN non-registered parameter number (0-127)</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "nrpv",
+    detail: "nrpv/external_io,midi",
+    documentation:
+      "<p>MIDI NRPN non-registered parameter value: Sends a MIDI NRPN non-registered parameter value message.</p>",
+    signatures: [
+      {
+        label: "nrpv(nrpv)",
+        parameters: [
+          {
+            label: "number nrpv",
+            documentation:
+              "<p>MIDI NRPN non-registered parameter value (0-127)</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "progNum",
+    detail: "progNum/external_io",
+    documentation:
+      "<p>MIDI program number: Sends a MIDI program change message.</p>",
+    signatures: [
+      {
+        label: "progNum(program)",
+        parameters: [
+          {
+            label: "number program",
+            documentation: "<p>MIDI program number (0-127)</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "sysex",
+    detail: "sysex/external_io,midi",
+    documentation: "<p>MIDI sysex: Sends a MIDI sysex message.</p>",
+    signatures: [
+      {
+        label: "sysex(id, data)",
+        parameters: [
+          {
+            label: "number id",
+            documentation: "<p>Sysex ID</p>",
+          },
+          {
+            label: "number data",
+            documentation: "<p>Sysex data</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "sysexid",
+    detail: "sysexid/external_io,midi",
+    documentation:
+      "<p>MIDI sysex ID: Sends a MIDI sysex identifier message.</p>",
+    signatures: [
+      {
+        label: "sysexid(id)",
+        parameters: [
+          {
+            label: "number id",
+            documentation: "<p>Sysex ID</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "sysexdata",
+    detail: "sysexdata/external_io,midi",
+    documentation: "<p>MIDI sysex data: Sends a MIDI sysex message.</p>",
+    signatures: [
+      {
+        label: "sysexdata(data)",
+        parameters: [
+          {
+            label: "number data",
+            documentation: "<p>Sysex data</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "midibend",
+    detail: "midibend/external_io,midi",
+    documentation: "<p>MIDI pitch bend: Sends a MIDI pitch bend message.</p>",
+    signatures: [
+      {
+        label: "midibend(midibend)",
+        parameters: [
+          {
+            label: "number midibend",
+            documentation: "<p>MIDI pitch bend (-1 - 1)</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "miditouch",
+    detail: "miditouch/external_io,midi",
+    documentation:
+      "<p>MIDI key after touch: Sends a MIDI key after touch message.</p>",
+    signatures: [
+      {
+        label: "miditouch(miditouch)",
+        parameters: [
+          {
+            label: "number miditouch",
+            documentation: "<p>MIDI key after touch (0-1)</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "oschost",
+    detail: "oschost/external_io",
+    documentation:
+      "<p>The host to send open sound control messages to. Requires running the OSC bridge.</p>",
+    signatures: [
+      {
+        label: "oschost(oschost)",
+        parameters: [
+          {
+            label: "string oschost",
+            documentation: "<p>e.g. 'localhost'</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "oscport",
+    detail: "oscport/external_io",
+    documentation:
+      "<p>The port to send open sound control messages to. Requires running the OSC bridge.</p>",
+    signatures: [
+      {
+        label: "oscport(oscport)",
+        parameters: [
+          {
+            label: "number oscport",
+            documentation: "<p>e.g. 57120</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "as",
+    detail: "as/combiners",
+    documentation: "<p>Sets properties in a batch.</p>",
+    signatures: [
+      {
+        label: "as(mapping)",
+        parameters: [
+          {
+            label: "String mapping",
+            documentation: "<p>the control names that are set</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "scrub",
+    detail: "Pattern.scrub/samples",
+    documentation:
+      "<p>Allows you to scrub an audio file like a tape loop by passing values that represents the position in the audio file\nin the optional array syntax ex: &quot;0.5:2&quot;, the second value controls the speed of playback</p>",
+    signatures: [
+      {
+        label: "scrub()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "lfo",
+    detail: "lfo/lfo,superdough",
+    documentation:
+      "<p>Configures an LFO. Can be called in sequence like pat.lfo(...).lfo(...) to set up multiple LFOs.\nThere are two ways to declare which control will be modulated:</p>\n<ol>\n<li>Explicitly put <code>control</code> in the config (e.g. <code>lfo({ c: &quot;lpf&quot; })</code>)</li>\n<li>If the control parameter is absent, the control <em>immediately before</em> the <code>lfo</code> call will be used\n(e.g. <code>s(&quot;saw&quot;).lpf(500).lfo()</code> to modulate <code>lpf</code>)</li>\n</ol>\n<p>Modulators can be referred to by <code>id</code> so that they can be updated later e.g. inside\na <code>sometimes</code>. See example below.</p>",
+    signatures: [
+      {
+        label:
+          "lfo(config, config.control, config.subControl, config.rate, config.sync, config.depth, config.depthabs, config.dcoffset, config.shape, config.skew, config.curve, config.retrig, config.fxi, id)",
+        parameters: [
+          {
+            label: "Object config",
+            documentation: "<p>LFO configuration.</p>",
+          },
+          {
+            label: "string config.control",
+            documentation: "<p>Node to modulate. Aliases: c</p>",
+          },
+          {
+            label: "string config.subControl",
+            documentation:
+              "<p>Sub-control name to append to the control key. Aliases: sc</p>",
+          },
+          {
+            label: "number config.rate",
+            documentation: "<p>Modulation rate. Aliases: r</p>",
+          },
+          {
+            label: "number config.sync",
+            documentation: "<p>Tempo-synced modulation rate. Aliases: s</p>",
+          },
+          {
+            label: "number config.depth",
+            documentation: "<p>Relative modulation depth. Aliases: dep, dr</p>",
+          },
+          {
+            label: "number config.depthabs",
+            documentation: "<p>Absolute modulation depth. Aliases: da</p>",
+          },
+          {
+            label: "number config.dcoffset",
+            documentation:
+              "<p>DC offset / bias for the waveform. Aliases: dc</p>",
+          },
+          {
+            label: "number config.shape",
+            documentation: "<p>Shape index. Aliases: sh</p>",
+          },
+          {
+            label: "number config.skew",
+            documentation: "<p>Skew amount. Aliases: sk</p>",
+          },
+          {
+            label: "number config.curve",
+            documentation: "<p>Exponential curve amount. Aliases: cu</p>",
+          },
+          {
+            label: "number config.retrig",
+            documentation:
+              "<p>If &gt; 0.5, the LFO will retrigger on each event. Aliases: rt</p>",
+          },
+          {
+            label: "number config.fxi",
+            documentation: "<p>FX index to target</p>",
+          },
+          {
+            label: "string id",
+            documentation: "<p>ID to use for this modulator</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "env",
+    detail: "env/envelope,superdough",
+    documentation:
+      "<p>Configures an envelope. Can be called in sequence like pat.env(...).env(...) to set up multiple envelopes\nThere are two ways to declare which control will be modulated:</p>\n<ol>\n<li>Explicitly put <code>control</code> in the config (e.g. <code>env({ c: &quot;lpf&quot; })</code>)</li>\n<li>If the control parameter is absent, the control <em>immediately before</em> the <code>env</code> call will be used\n(e.g. <code>s(&quot;saw&quot;).lpf(500).env({ a: 1 })</code> to modulate <code>lpf</code>)</li>\n</ol>\n<p>Modulators can be referred to by <code>id</code> so that they can be updated later e.g. inside\na <code>sometimes</code>. See example below.</p>",
+    signatures: [
+      {
+        label:
+          "env(config, config.control, config.subControl, config.depth, config.depthabs, config.attack, config.decay, config.sustain, config.release, config.acurve, config.dcurve, config.rcurve, config.fxi, id)",
+        parameters: [
+          {
+            label: "Object config",
+            documentation: "<p>Envelope configuration.</p>",
+          },
+          {
+            label: "string config.control",
+            documentation: "<p>Node to modulate. Aliases: c</p>",
+          },
+          {
+            label: "string config.subControl",
+            documentation:
+              "<p>Sub-control name to append to the control key. Aliases: sc</p>",
+          },
+          {
+            label: "number config.depth",
+            documentation: "<p>Relative modulation depth. Aliases: dep, dr</p>",
+          },
+          {
+            label: "number config.depthabs",
+            documentation: "<p>Absolute modulation depth. Aliases: da</p>",
+          },
+          {
+            label: "number config.attack",
+            documentation: "<p>Time to reach depth. Aliases: att, a</p>",
+          },
+          {
+            label: "number config.decay",
+            documentation: "<p>Time to reach sustain. Aliases: dec, d</p>",
+          },
+          {
+            label: "number config.sustain",
+            documentation: "<p>Sustain depth. Aliases: sus, s</p>",
+          },
+          {
+            label: "number config.release",
+            documentation:
+              "<p>Time to return to nominal value. Aliases: rel, r</p>",
+          },
+          {
+            label: "number config.acurve",
+            documentation:
+              "<p>Snappiness of attack curve (-1 = relaxed, 1 = snappy). Aliases: ac</p>",
+          },
+          {
+            label: "number config.dcurve",
+            documentation:
+              "<p>Snappiness of decay curve (-1 = relaxed, 1 = snappy). Aliases: dc</p>",
+          },
+          {
+            label: "number config.rcurve",
+            documentation:
+              "<p>Snappiness of release curve (-1 = relaxed, 1 = snappy). Aliases: rc</p>",
+          },
+          {
+            label: "number config.fxi",
+            documentation: "<p>FX index to target</p>",
+          },
+          {
+            label: "string id",
+            documentation: "<p>ID to use for this modulator</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "bmod",
+    detail: "bmod/superdough",
+    documentation:
+      "<p>Modulates with the output from a given <code>bus</code>.\nCan be called in sequence like pat.bmod(...).bmod(...) to set up multiple modulators</p>\n<p>Send to an audio bus with <code>otherPat.bus(..)</code>.</p>\n<p>There are two ways to declare which control will be modulated:</p>\n<ol>\n<li>Explicitly put <code>control</code> in the config (e.g. <code>bmod({ id: 2, c: &quot;lpf&quot; })</code>)</li>\n<li>If the control parameter is absent, the control <em>immediately before</em> the <code>bmod</code> call will be used\n(e.g. <code>s(&quot;saw&quot;).lpf(500).bmod({ id: 2 })</code> to modulate <code>lpf</code>)</li>\n</ol>\n<p>Modulators can be referred to by <code>id</code> so that they can be updated later e.g. inside\na <code>sometimes</code>. See example below.</p>",
+    signatures: [
+      {
+        label:
+          "bmod(config, config.bus, config.control, config.subControl, config.depth, config.depthabs, config.dc, config.fxi, id)",
+        parameters: [
+          {
+            label: "Object config",
+            documentation: "<p>Bus modulation configuration.</p>",
+          },
+          {
+            label: "string config.bus",
+            documentation: "<p>Bus to get modulation signal from</p>",
+          },
+          {
+            label: "string config.control",
+            documentation: "<p>Node to modulate. Aliases: c</p>",
+          },
+          {
+            label: "string config.subControl",
+            documentation:
+              "<p>Sub-control name to append to the control key. Aliases: sc</p>",
+          },
+          {
+            label: "number config.depth",
+            documentation: "<p>Relative modulation depth. Aliases: dep, dr</p>",
+          },
+          {
+            label: "number config.depthabs",
+            documentation: "<p>Absolute modulation depth. Aliases: da</p>",
+          },
+          {
+            label: "number config.dc",
+            documentation: "<p>DC offset prior to application</p>",
+          },
+          {
+            label: "number config.fxi",
+            documentation: "<p>FX index to target</p>",
+          },
+          {
+            label: "string id",
+            documentation: "<p>ID to use for this modulator</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "transient",
+    detail: "transient/superdough",
+    documentation:
+      "<p>Transient shaper. Gives independent control over the emphasis on transients\nand sustains</p>",
+    signatures: [
+      {
+        label: "transient(attack, sustain)",
+        parameters: [
+          {
+            label: "number attack",
+            documentation:
+              "<p>Emphasis on transients; between -1 (deaccentuate) and 1 (accentuate)</p>",
+          },
+          {
+            label: "number sustain",
+            documentation:
+              "<p>Emphasis on the sustains; between -1 (deaccentuate) and 1 (accentuate)</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "drawLine",
+    detail: "drawLine/visualization",
+    documentation:
+      "<p>Intended for a debugging, drawLine renders the pattern as a string, where each character represents the same time span.\nShould only be used with single characters as values, otherwise the character slots will be messed up.\nCharacter legend:</p>\n<ul>\n<li>&quot;|&quot; cycle separator</li>\n<li>&quot;-&quot; hold previous value</li>\n<li>&quot;.&quot; silence</li>\n</ul>",
+    signatures: [
+      {
+        label: "drawLine(pattern, chars)",
+        parameters: [
+          {
+            label: "Pattern pattern",
+            documentation: "<p>the pattern to use</p>",
+          },
+          {
+            label: "number chars",
+            documentation: "<p>max number of characters (approximately)</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "euclid",
+    detail: "Pattern.euclid/temporal",
+    documentation:
+      "<p>Changes the structure of the pattern to form an Euclidean rhythm.\nEuclidean rhythms are rhythms obtained using the greatest common\ndivisor of two numbers.  They were described in 2004 by Godfried\nToussaint, a Canadian computer scientist.  Euclidean rhythms are\nreally useful for computer/algorithmic music because they can\ndescribe a large number of rhythms with a couple of numbers.</p>\n<p>A negative number of pulses inverts the pattern\nso pulses happen in the gaps of the normal euclidean rhythm.</p>\n<p>A negative number of steps changes it into <code>euclidLegato</code>.</p>",
+    signatures: [
+      {
+        label: "euclid(pulses, steps)",
+        parameters: [
+          {
+            label: "number pulses",
+            documentation: "<p>the number of onsets/beats</p>",
+          },
+          {
+            label: "number steps",
+            documentation: "<p>the number of steps to fill</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "euclidRot",
+    detail: "Pattern.euclidRot/temporal",
+    documentation:
+      "<p>Like <code>euclid</code>, but has an additional parameter for 'rotating' the resulting sequence.</p>",
+    signatures: [
+      {
+        label: "euclidRot(pulses, steps, rotation)",
+        parameters: [
+          {
+            label: "number pulses",
+            documentation: "<p>the number of onsets/beats</p>",
+          },
+          {
+            label: "number steps",
+            documentation: "<p>the number of steps to fill</p>",
+          },
+          {
+            label: "number rotation",
+            documentation: "<p>offset in steps</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "_euclidRot",
+    detail: "_euclidRot",
+    signatures: [
+      {
+        label: "_euclidRot()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "euclidLegato",
+    detail: "Pattern.euclidLegato/temporal",
+    documentation:
+      "<p>Similar to <code>euclid</code>, but each pulse is held until the next pulse,\nso there will be no gaps.</p>\n<p>A negative number of steps changes it into <code>euclid</code>.</p>",
+    signatures: [
+      {
+        label: "euclidLegato(pulses, steps, rotation, pat)",
+        parameters: [
+          {
+            label: "number pulses",
+            documentation: "<p>the number of onsets/beats</p>",
+          },
+          {
+            label: "number steps",
+            documentation: "<p>the number of steps to fill</p>",
+          },
+          {
+            label: "undefined rotation",
+            documentation: "<p>offset in steps</p>",
+          },
+          {
+            label: "undefined pat",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "euclidLegatoRot",
+    detail: "Pattern.euclidLegatoRot/temporal",
+    documentation:
+      "<p>Similar to <code>euclid</code>, but each pulse is held until the next pulse,\nso there will be no gaps, and has an additional parameter for 'rotating'\nthe resulting sequence.</p>\n<p>A negative number of steps changes it into <code>euclidRot</code>.</p>",
+    signatures: [
+      {
+        label: "euclidLegatoRot(pulses, steps, rotation)",
+        parameters: [
+          {
+            label: "number pulses",
+            documentation: "<p>the number of onsets/beats</p>",
+          },
+          {
+            label: "number steps",
+            documentation: "<p>the number of steps to fill</p>",
+          },
+          {
+            label: "number rotation",
+            documentation: "<p>offset in steps</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "euclidish",
+    detail: "Pattern.euclidish/temporal",
+    documentation:
+      "<p>A 'euclid' variant with an additional parameter that morphs the resulting\nrhythm from 0 (no morphing) to 1 (completely 'even'). For example\n<code>sound(&quot;bd&quot;).euclidish(3,8,0)</code> would be the same as\n<code>sound(&quot;bd&quot;).euclid(3,8)</code>, and <code>sound(&quot;bd&quot;).euclidish(3,8,1)</code> would be the\nsame as <code>sound(&quot;bd bd bd&quot;)</code>. <code>sound(&quot;bd&quot;).euclidish(3,8,0.5)</code> would have a\ngroove somewhere between.\nInspired by the work of Malcom Braff.</p>",
+    signatures: [
+      {
+        label: "euclidish(pulses, steps, groove)",
+        parameters: [
+          {
+            label: "number pulses",
+            documentation: "<p>the number of onsets</p>",
+          },
+          {
+            label: "number steps",
+            documentation: "<p>the number of steps to fill</p>",
+          },
+          {
+            label: "number groove",
+            documentation:
+              "<p>exists between the extremes of 0 (straight euclidian) and 1 (straight pulse)</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "Pattern",
+    detail: "Pattern/noautocomplete",
+    documentation:
+      "<p>Create a pattern. As an end user, you will most likely not create a Pattern directly.</p>",
+    signatures: [
+      {
+        label: "Pattern(query)",
+        parameters: [
+          {
+            label: "function query",
+            documentation:
+              "<p>The function that maps a <code>State</code> to an array of <code>Hap</code>.</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "withValue",
+    detail: "Pattern#withValue/functional",
+    documentation:
+      "<p>Returns a new pattern, with the function applied to the value of\neach hap. It has the alias <code>fmap</code>.</p>",
+    signatures: [
+      {
+        label: "withValue(func)",
+        parameters: [
+          {
+            label: "function func",
+            documentation: "<p>to to apply to the value</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "fmap",
+    detail: "Pattern#fmap/noautocomplete",
+    documentation: "<p>see <code>withValue</code></p>",
+    signatures: [
+      {
+        label: "fmap()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "appWhole",
+    detail: "Pattern#appWhole/functional,noautocomplete",
+    documentation:
+      "<p>Assumes 'this' is a pattern of functions, and given a function to\nresolve wholes, applies a given pattern of values to that\npattern of functions.</p>",
+    signatures: [
+      {
+        label: "appWhole(whole_func, func)",
+        parameters: [
+          {
+            label: "function whole_func",
+          },
+          {
+            label: "function func",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "appBoth",
+    detail: "Pattern#appBoth/functional,noautocomplete",
+    documentation:
+      "<p>When this method is called on a pattern of functions, it matches its haps\nwith those in the given pattern of values.  A new pattern is returned, with\neach matching value applied to the corresponding function.</p>\n<p>In this <code>_appBoth</code> variant, where timespans of the function and value haps\nare not the same but do intersect, the resulting hap has a timespan of the\nintersection. This applies to both the part and the whole timespan.</p>",
+    signatures: [
+      {
+        label: "appBoth(pat_val)",
+        parameters: [
+          {
+            label: "Pattern pat_val",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "appLeft",
+    detail: "Pattern#appLeft/functional,noautocomplete",
+    documentation:
+      "<p>As with <code>appBoth</code>, but the <code>whole</code> timespan is not the intersection,\nbut the timespan from the function of patterns that this method is called\non. In practice, this means that the pattern structure, including onsets,\nare preserved from the pattern of functions (often referred to as the left\nhand or inner pattern).</p>",
+    signatures: [
+      {
+        label: "appLeft(pat_val)",
+        parameters: [
+          {
+            label: "Pattern pat_val",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "appRight",
+    detail: "Pattern#appRight/functional,noautocomplete",
+    documentation:
+      "<p>As with <code>appLeft</code>, but <code>whole</code> timespans are instead taken from the\npattern of values, i.e. structure is preserved from the right hand/outer\npattern.</p>",
+    signatures: [
+      {
+        label: "appRight(pat_val)",
+        parameters: [
+          {
+            label: "Pattern pat_val",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "queryArc",
+    detail: "Pattern#queryArc/internals,noautocomplete",
+    documentation: "<p>Query haps inside the given time span.</p>",
+    signatures: [
+      {
+        label: "queryArc(begin, end)",
+        parameters: [
+          {
+            label: "Fraction begin",
+            documentation: "<p>from time</p>",
+          },
+          {
+            label: "Fraction end",
+            documentation: "<p>to time</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "splitQueries",
+    detail: "Pattern#splitQueries/internals,noautocomplete",
+    documentation:
+      "<p>Returns a new pattern, with queries split at cycle boundaries. This makes\nsome calculations easier to express, as all haps are then constrained to\nhappen within a cycle.</p>",
+    signatures: [
+      {
+        label: "splitQueries()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "withQuerySpan",
+    detail: "Pattern#withQuerySpan/internals,noautocomplete",
+    documentation:
+      "<p>Returns a new pattern, where the given function is applied to the query\ntimespan before passing it to the original pattern.</p>",
+    signatures: [
+      {
+        label: "withQuerySpan(func)",
+        parameters: [
+          {
+            label: "function func",
+            documentation: "<p>the function to apply</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "withQueryTime",
+    detail: "Pattern#withQueryTime/internals,noautocomplete",
+    documentation:
+      "<p>As with <code>withQuerySpan</code>, but the function is applied to both the\nbegin and end time of the query timespan.</p>",
+    signatures: [
+      {
+        label: "withQueryTime(func)",
+        parameters: [
+          {
+            label: "function func",
+            documentation: "<p>the function to apply</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "withHapSpan",
+    detail: "Pattern#withHapSpan/internals,noautocomplete",
+    documentation:
+      "<p>Similar to <code>withQuerySpan</code>, but the function is applied to the timespans\nof all haps returned by pattern queries (both <code>part</code> timespans, and where\npresent, <code>whole</code> timespans).</p>",
+    signatures: [
+      {
+        label: "withHapSpan(func)",
+        parameters: [
+          {
+            label: "function func",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "withHapTime",
+    detail: "Pattern#withHapTime/internals,noautocomplete",
+    documentation:
+      "<p>As with <code>withHapSpan</code>, but the function is applied to both the\nbegin and end time of the hap timespans.</p>",
+    signatures: [
+      {
+        label: "withHapTime(func)",
+        parameters: [
+          {
+            label: "function func",
+            documentation: "<p>the function to apply</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "withHaps",
+    detail: "Pattern#withHaps/internals,noautocomplete",
+    documentation:
+      "<p>Returns a new pattern with the given function applied to the list of haps returned by every query.</p>\n<p>As an end user, you will most likely not need to use this; look at <code>withContext</code>, <code>withHapSpan</code>, etc. instead.</p>",
+    signatures: [
+      {
+        label: "withHaps(func)",
+        parameters: [
+          {
+            label: "function func",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "withHap",
+    detail: "Pattern#withHap/internals,noautocomplete",
+    documentation:
+      "<p>As with <code>withHaps</code>, but applies the function to every hap, rather than every list of haps.</p>\n<p>As an end user, you will most likely not need to use this; look at <code>withContext</code>, <code>withHapSpan</code>, etc. instead.</p>",
+    signatures: [
+      {
+        label: "withHap(func)",
+        parameters: [
+          {
+            label: "function func",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "setContext",
+    detail: "Pattern#setContext/internals,noautocomplete",
+    documentation:
+      "<p>Returns a new pattern with the context field set to every hap set to the given value.</p>",
+    signatures: [
+      {
+        label: "setContext(context)",
+        parameters: [
+          {
+            label: "* context",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "withContext",
+    detail: "Pattern#withContext/internals,noautocomplete",
+    documentation:
+      "<p>Returns a new pattern with the given function applied to the context field of every hap.</p>",
+    signatures: [
+      {
+        label: "withContext(func)",
+        parameters: [
+          {
+            label: "function func",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "stripContext",
+    detail: "Pattern#stripContext/internals,noautocomplete",
+    documentation:
+      "<p>Returns a new pattern with the context field of every hap set to an empty object.</p>",
+    signatures: [
+      {
+        label: "stripContext()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "withLoc",
+    detail: "Pattern#withLoc/internals,noautocomplete",
+    documentation:
+      "<p>Returns a new pattern with the given location information added to the\ncontext of every hap.</p>",
+    signatures: [
+      {
+        label: "withLoc(start, end)",
+        parameters: [
+          {
+            label: "Number start",
+            documentation: "<p>start offset</p>",
+          },
+          {
+            label: "Number end",
+            documentation: "<p>end offset</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "filterHaps",
+    detail: "Pattern#filterHaps/internals",
+    documentation:
+      "<p>Returns a new Pattern, which only returns haps that meet the given test.</p>",
+    signatures: [
+      {
+        label: "filterHaps(hap_test)",
+        parameters: [
+          {
+            label: "function hap_test",
+            documentation:
+              "<p>a function which returns false for haps to be removed from the pattern</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "filterValues",
+    detail: "Pattern#filterValues/internals",
+    documentation:
+      "<p>As with <code>filterHaps</code>, but the function is applied to values\ninside haps.</p>",
+    signatures: [
+      {
+        label: "filterValues(value_test)",
+        parameters: [
+          {
+            label: "function value_test",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "removeUndefineds",
+    detail: "Pattern#removeUndefineds/internals,noautocomplete",
+    documentation:
+      "<p>Returns a new pattern, with haps containing undefined values removed from\nquery results.</p>",
+    signatures: [
+      {
+        label: "removeUndefineds()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "onsetsOnly",
+    detail: "Pattern#onsetsOnly/internals,noautocomplete",
+    documentation:
+      "<p>Returns a new pattern, with all haps without onsets filtered out. A hap\nwith an onset is one with a <code>whole</code> timespan that begins at the same time\nas its <code>part</code> timespan.</p>",
+    signatures: [
+      {
+        label: "onsetsOnly()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "discreteOnly",
+    detail: "Pattern#discreteOnly/internals,noautocomplete",
+    documentation:
+      "<p>Returns a new pattern, with 'continuous' haps (those without 'whole'\ntimespans) removed from query results.</p>",
+    signatures: [
+      {
+        label: "discreteOnly()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "defragmentHaps",
+    detail: "Pattern#defragmentHaps/internals,noautocomplete",
+    documentation:
+      "<p>Combines adjacent haps with the same value and whole.  Only\nintended for use in tests.</p>",
+    signatures: [
+      {
+        label: "defragmentHaps()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "firstCycle",
+    detail: "Pattern#firstCycle/internals,noautocomplete",
+    documentation:
+      "<p>Queries the pattern for the first cycle, returning Haps. Mainly of use when\ndebugging a pattern.</p>",
+    signatures: [
+      {
+        label: "firstCycle(with_context)",
+        parameters: [
+          {
+            label: "Boolean with_context",
+            documentation:
+              "<p>set to true, otherwise the context field\nwill be stripped from the resulting haps.</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "firstCycleValues",
+    detail: "Pattern#firstCycleValues/internals,noautocomplete",
+    documentation:
+      "<p>Accessor for a list of values returned by querying the first cycle.</p>",
+    signatures: [
+      {
+        label: "firstCycleValues()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "showFirstCycle",
+    detail: "Pattern#showFirstCycle/internals,noautocomplete",
+    documentation:
+      "<p>More human-readable version of the <code>firstCycleValues</code> accessor.</p>",
+    signatures: [
+      {
+        label: "showFirstCycle()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "sortHapsByPart",
+    detail: "Pattern#sortHapsByPart/internals,noautocomplete",
+    documentation:
+      "<p>Returns a new pattern, which returns haps sorted in temporal order. Mainly\nof use when comparing two patterns for equality, in tests.</p>",
+    signatures: [
+      {
+        label: "sortHapsByPart()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "asNumber",
+    detail: "Pattern#asNumber/internals",
+    documentation:
+      "<p>Returns a new pattern with all values parsed as numerals.</p>",
+    signatures: [
+      {
+        label: "asNumber()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "layer",
+    detail: "Pattern.layer/combiners",
+    documentation:
+      "<p>Layers the result of the given function(s). Like <code>superimpose</code>, but without the original pattern:</p>",
+    signatures: [
+      {
+        label: "layer()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "superimpose",
+    detail: "Pattern.superimpose/combiners",
+    documentation:
+      "<p>Superimposes the result of the given function(s) on top of the original pattern:</p>",
+    signatures: [
+      {
+        label: "superimpose()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "onSchedule",
+    detail: "Pattern.onSchedule",
+    documentation:
+      "<p>Attaches a function that is called for each hap onset.</p>",
+    signatures: [
+      {
+        label: "onSchedule()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "log",
+    detail: "Pattern.log/visualization",
+    documentation:
+      "<p>Writes the content of the current event to the console (visible in the side menu).</p>",
+    signatures: [
+      {
+        label: "log()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "logValues",
+    detail: "Pattern.logValues/visualization",
+    documentation:
+      "<p>A simplified version of <code>log</code> which writes all &quot;values&quot; (various configurable parameters)\nwithin the event to the console (visible in the side menu).</p>",
+    signatures: [
+      {
+        label: "logValues()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "into",
+    detail: "Pattern.into/temporal",
+    documentation:
+      "<p>Breaks a pattern into pieces according to the structure of a given pattern.\nTrue values in the given pattern cause the corresponding subcycle of the\nsource pattern to be looped, and for an (optional) given function to be\napplied. False values result in the corresponding part of the source pattern\nto be played unchanged.</p>",
+    signatures: [
+      {
+        label: "into()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "arpWith",
+    detail: "arpWith/temporal",
+    documentation: "<p>Selects indices in in stacked notes.</p>",
+    signatures: [
+      {
+        label: "arpWith()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "arp",
+    detail: "arp/temporal",
+    documentation: "<p>Selects indices in in stacked notes.</p>",
+    signatures: [
+      {
+        label: "arp()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "set",
+    detail: "Pattern.set/internals,combiners",
+    documentation:
+      "<p>When called on a pattern <code>a</code>, with a input pattern <code>b</code> (<code>a.set(b)</code>),\ncombines <code>a</code> and <code>b</code> such that anything defined in <code>b</code>\nand anything defined in <code>a</code> that is <em>not</em> defined in <code>b</code>\nwill be in the resulting pattern.</p>\n<p>The structure is maintained from <code>a</code>,\nbecause the default pattern alignment is <code>in</code>,\nsee the section on <code>Pattern Alignment</code>\nin the technical manual in the docs</p>\n<p>This is the inverse of <code>keep</code></p>\n<p>See examples below</p>",
+    signatures: [
+      {
+        label: "set(pat)",
+        parameters: [
+          {
+            label: "Pattern pat",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "keep",
+    detail: "Pattern.keep/internals,combiners",
+    documentation:
+      "<p>When called on a pattern <code>a</code>, with a input pattern <code>b</code> (<code>a.keep(b)</code>),\ncombines <code>a</code> and <code>b</code> such that anything defined in <code>a</code>,\nand anything defined in <code>b</code> that is <em>not</em> defined in <code>a</code>\nwill be in the resulting pattern</p>\n<p>The structure is maintained from <code>a</code>,\nbecause the default pattern alignment is <code>in</code>,\nsee the section on <code>Pattern Alignment</code>\nin the technical manual in the docs</p>\n<p>This is the inverse of <code>set</code></p>\n<p>See examples below</p>",
+    signatures: [
+      {
+        label: "keep(pat)",
+        parameters: [
+          {
+            label: "Pattern pat",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "add",
+    detail: "Pattern.add/math",
+    documentation:
+      "<p>Assumes a pattern of numbers. Adds the given number to each item in the pattern.</p>",
+    signatures: [
+      {
+        label: "add()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "sub",
+    detail: "Pattern.sub/math",
+    documentation: "<p>Like add, but the given numbers are subtracted.</p>",
+    signatures: [
+      {
+        label: "sub()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "mul",
+    detail: "Pattern.mul/math",
+    documentation: "<p>Multiplies each number by the given factor.</p>",
+    signatures: [
+      {
+        label: "mul()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "div",
+    detail: "Pattern.div/math",
+    documentation: "<p>Divides each number by the given factor.</p>",
+    signatures: [
+      {
+        label: "div()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "mod",
+    detail: "Pattern.mod/math",
+    documentation:
+      "<p>Divides each number by the given factor and returns the remainder</p>",
+    signatures: [
+      {
+        label: "mod()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "pow",
+    detail: "Pattern.pow/math",
+    documentation: "<p>Raises each number to the power of the given factor</p>",
+    signatures: [
+      {
+        label: "pow()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "band",
+    detail: "Pattern.band/math",
+    documentation:
+      "<p>Performs a bitwise <code>and</code> on each number and the given factor</p>",
+    signatures: [
+      {
+        label: "band()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "bor",
+    detail: "Pattern.bor/math",
+    documentation:
+      "<p>Performs a bitwise <code>or</code> on each number and the given factor</p>",
+    signatures: [
+      {
+        label: "bor()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "bxor",
+    detail: "Pattern.bxor/math",
+    documentation:
+      "<p>Performs a bitwise <code>xor</code> on each number and the given factor</p>",
+    signatures: [
+      {
+        label: "bxor()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "blshift",
+    detail: "Pattern.blshift/math",
+    documentation:
+      "<p>Performs a bitwise <code>left shift</code> on each number by the given factor</p>",
+    signatures: [
+      {
+        label: "blshift()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "brshift",
+    detail: "Pattern.brshift/math",
+    documentation:
+      "<p>Performs a bitwise <code>right shift</code> on each number by the given factor</p>",
+    signatures: [
+      {
+        label: "brshift()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "lt",
+    detail: "Pattern.lt/math",
+    documentation: "<p>performs a &lt; b</p>",
+    signatures: [
+      {
+        label: "lt(a, b)",
+        parameters: [
+          {
+            label: "any a",
+          },
+          {
+            label: "any b",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "gt",
+    detail: "Pattern.gt/math",
+    documentation: "<p>performs a &gt; b</p>",
+    signatures: [
+      {
+        label: "gt(a, b)",
+        parameters: [
+          {
+            label: "any a",
+          },
+          {
+            label: "any b",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "lte",
+    detail: "Pattern.lte/math",
+    documentation: "<p>performs a &lt;= b</p>",
+    signatures: [
+      {
+        label: "lte(a, b)",
+        parameters: [
+          {
+            label: "any a",
+          },
+          {
+            label: "any b",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "gte",
+    detail: "Pattern.gte/math",
+    documentation: "<p>performs a &gt;= b</p>",
+    signatures: [
+      {
+        label: "gte(a, b)",
+        parameters: [
+          {
+            label: "any a",
+          },
+          {
+            label: "any b",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "eq",
+    detail: "Pattern.eq/math",
+    documentation: "<p>performs a == b</p>",
+    signatures: [
+      {
+        label: "eq(a, b)",
+        parameters: [
+          {
+            label: "any a",
+          },
+          {
+            label: "any b",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "eqt",
+    detail: "Pattern.eqt/math",
+    documentation: "<p>performs a === b (strictly equal)</p>",
+    signatures: [
+      {
+        label: "eqt(a, b)",
+        parameters: [
+          {
+            label: "any a",
+          },
+          {
+            label: "any b",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "ne",
+    detail: "Pattern.ne/math",
+    documentation: "<p>performs a != b</p>",
+    signatures: [
+      {
+        label: "ne(a, b)",
+        parameters: [
+          {
+            label: "any a",
+          },
+          {
+            label: "any b",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "net",
+    detail: "Pattern.net/math",
+    documentation: "<p>performs a !== b (strictly not equal)</p>",
+    signatures: [
+      {
+        label: "net(a, b)",
+        parameters: [
+          {
+            label: "any a",
+          },
+          {
+            label: "any b",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "and",
+    detail: "Pattern.and/math",
+    documentation: "<p>performs a &amp;&amp; b</p>",
+    signatures: [
+      {
+        label: "and(a, b)",
+        parameters: [
+          {
+            label: "any a",
+          },
+          {
+            label: "any b",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "or",
+    detail: "Pattern.or/math",
+    documentation: "<p>performs a || b</p>",
+    signatures: [
+      {
+        label: "or(a, b)",
+        parameters: [
+          {
+            label: "any a",
+          },
+          {
+            label: "any b",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "struct",
+    detail: "Pattern#struct/temporal",
+    documentation: "<p>Applies the given structure to the pattern:</p>",
+    signatures: [
+      {
+        label: "struct()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "mask",
+    detail: "Pattern#mask/temporal",
+    documentation: "<p>Returns silence when mask is 0 or &quot;~&quot;</p>",
+    signatures: [
+      {
+        label: "mask()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "reset",
+    detail: "Pattern#reset/temporal",
+    documentation:
+      "<p>Resets the pattern to the start of the cycle for each onset of the reset pattern.</p>",
+    signatures: [
+      {
+        label: "reset()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "restart",
+    detail: "Pattern#restart/temporal",
+    documentation:
+      "<p>Restarts the pattern for each onset of the restart pattern.\nWhile reset will only reset the current cycle, restart will start from cycle 0.</p>",
+    signatures: [
+      {
+        label: "restart()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "setDefaultJoin",
+    detail: "setDefaultJoin/combiners",
+    documentation:
+      "<p>Sets the default method of combining events from two patterns (aka <a href=\"https://strudel.cc/technical-manual/alignment/\">alignment</a>) in Strudel.\nThe default method is 'in', meaning that patterns to the left will (typically) dictate the event timings when combined with patterns to the right.\nBy changing alignment to 'out', the opposite will happen. With 'mix', they will combine their event timings.</p>\n<p>Note that we say the <em>default</em> method, because alignments can also be set explicitly with calls like\n'add.mix', 'set.squeeze', etc.</p>",
+    signatures: [
+      {
+        label: "setDefaultJoin(method)",
+        parameters: [
+          {
+            label: "string method",
+            documentation:
+              "<p>Default join method to use. Options: 'in', 'out', 'mix', 'squeeze', 'squeezeout', 'reset', 'restart', 'poly'</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "gap",
+    detail: "gap/generators",
+    documentation:
+      "<p>Does absolutely nothing, but with a given metrical 'steps'</p>",
+    signatures: [
+      {
+        label: "gap(steps)",
+        parameters: [
+          {
+            label: "number steps",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "silence",
+    detail: "silence/generators",
+    documentation: "<p>Does absolutely nothing..</p>",
+    signatures: [
+      {
+        label: "silence()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "pure",
+    detail: "pure/generators,noautocomplete",
+    documentation: "<p>A discrete value that repeats once per cycle.</p>",
+    signatures: [
+      {
+        label: "pure()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "sequenceP",
+    detail: "sequenceP/temporal",
+    documentation:
+      "<p>Takes a list of patterns, and returns a pattern of lists.</p>",
+    signatures: [
+      {
+        label: "sequenceP()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "stack",
+    detail: "stack/temporal",
+    documentation:
+      "<p>The given items are played at the same time at the same length.</p>",
+    signatures: [
+      {
+        label: "stack()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "stackLeft",
+    detail: "stackLeft/temporal,stepwise,combiners",
+    documentation:
+      "<p>The input patterns are aligned to the left, with silence padded to the shorter pattern(s) in the final steps if there's a stepcount disparity. See also <code>stackRight</code> and <code>stackCenter/stackCentre</code></p>",
+    signatures: [
+      {
+        label: "stackLeft()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "stackRight",
+    detail: "stackRight/temporal,stepwise,combiners",
+    documentation:
+      "<p>The input patterns are aligned to the right, with silence padded to the shorter pattern(s) in the initial steps if there's a stepcount disparity. See also <code>stackLeft</code> and <code>stackCenter/stackCentre</code></p>",
+    signatures: [
+      {
+        label: "stackRight()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "stackCenter",
+    detail: "stackCenter/temporal,stepwise,combiners",
+    documentation:
+      "<p>The input patterns are aligned to the right, with silence padded to the shorter pattern(s) in the initial steps if there's a stepcount disparity. See also <code>stackLeft</code> and <code>stackRight</code></p>",
+    signatures: [
+      {
+        label: "stackCenter()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "stackRepeat",
+    detail: "stackRepeat/temporal,stepwise,combiners",
+    documentation:
+      "<p>Shorthand for <code>pm(patterns).pace(m)</code> where m is the max step count in the input patterns</p>",
+    signatures: [
+      {
+        label: "stackRepeat()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "slowcat",
+    detail: "slowcat/combiners",
+    documentation:
+      "<p>Concatenation: combines a list of patterns, switching between them successively, one per cycle.</p>",
+    signatures: [
+      {
+        label: "slowcat()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "slowcatPrime",
+    detail: "slowcatPrime/combiners",
+    documentation:
+      "<p>Concatenation: combines a list of patterns, switching between them successively, one per cycle. Unlike slowcat, this version will skip cycles.</p>",
+    signatures: [
+      {
+        label: "slowcatPrime(items)",
+        parameters: [
+          {
+            label: "any items",
+            documentation: "<p>The items to concatenate</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "cat",
+    detail: "cat/combiners",
+    documentation:
+      "<p>The given items are con<strong>cat</strong>enated, where each one takes one cycle.</p>",
+    signatures: [
+      {
+        label: "cat(items)",
+        parameters: [
+          {
+            label: "any items",
+            documentation: "<p>The items to concatenate</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "arrange",
+    detail: "arrange/combiners",
+    documentation:
+      "<p>Allows to arrange multiple patterns together over multiple cycles.\nTakes a variable number of arrays with two elements specifying the number of cycles and the pattern to use.</p>",
+    signatures: [
+      {
+        label: "arrange()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "seqPLoop",
+    detail: "seqPLoop/combiners",
+    documentation:
+      "<p>Similarly to <code>arrange</code>, allows you to arrange multiple patterns together over multiple cycles.\nUnlike <code>arrange</code>, you specify a start and stop time for each pattern rather than duration, which\nmeans that patterns can overlap.</p>",
+    signatures: [
+      {
+        label: "seqPLoop()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "sequence",
+    detail: "sequence/combiners",
+    documentation: "<p>See <code>fastcat</code></p>",
+    signatures: [
+      {
+        label: "sequence()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "seq",
+    detail: "seq/combiners",
+    documentation:
+      "<p>Like <strong>cat</strong>, but the items are crammed into one cycle.</p>",
+    signatures: [
+      {
+        label: "seq()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "register",
+    detail: "register/functional",
+    documentation:
+      "<p>Registers a new pattern method. The method is added to the Pattern class + the standalone function is returned from register.</p>",
+    signatures: [
+      {
+        label: "register(name, func, patternify)",
+        parameters: [
+          {
+            label: "string name",
+            documentation:
+              "<p>name of the function, or an array of names to be used as synonyms</p>",
+          },
+          {
+            label: "function func",
+            documentation:
+              "<p>function with 1 or more params, where last is the current pattern</p>",
+          },
+          {
+            label: "bool patternify",
+            documentation:
+              "<p>defaults to true; if set to false, you will have more control over the arguments to <code>func</code> as they will be\nin their raw form and it will be up to you to patternify them and/or query them for values</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "round",
+    detail: "Pattern.round/math",
+    documentation:
+      "<p>Assumes a numerical pattern. Returns a new pattern with all values rounded\nto the nearest integer.</p>",
+    signatures: [
+      {
+        label: "round()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "floor",
+    detail: "Pattern.floor/math",
+    documentation:
+      "<p>Assumes a numerical pattern. Returns a new pattern with all values set to\ntheir mathematical floor. E.g. <code>3.7</code> replaced with to <code>3</code>, and <code>-4.2</code>\nreplaced with <code>-5</code>.</p>",
+    signatures: [
+      {
+        label: "floor()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "ceil",
+    detail: "Pattern.ceil/math",
+    documentation:
+      "<p>Assumes a numerical pattern. Returns a new pattern with all values set to\ntheir mathematical ceiling. E.g. <code>3.2</code> replaced with <code>4</code>, and <code>-4.2</code>\nreplaced with <code>-4</code>.</p>",
+    signatures: [
+      {
+        label: "ceil()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "toBipolar",
+    detail: "toBipolar/math,noautocomplete",
+    documentation:
+      "<p>Assumes a numerical pattern, containing unipolar values in the range 0 ..</p>\n<ol>\n<li>Returns a new pattern with values scaled to the bipolar range -1 .. 1</li>\n</ol>",
+    signatures: [
+      {
+        label: "toBipolar()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "fromBipolar",
+    detail: "fromBipolar/math,noautocomplete",
+    documentation:
+      "<p>Assumes a numerical pattern, containing bipolar values in the range -1 .. 1\nReturns a new pattern with values scaled to the unipolar range 0 .. 1</p>",
+    signatures: [
+      {
+        label: "fromBipolar()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "range",
+    detail: "Pattern.range/math",
+    documentation:
+      "<p>Assumes a numerical pattern, containing unipolar values in the range 0 .. 1.\nReturns a new pattern with values scaled to the given min/max range.\nMost useful in combination with continuous patterns.</p>",
+    signatures: [
+      {
+        label: "range()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "rangex",
+    detail: "Pattern.rangex/math",
+    documentation:
+      "<p>Assumes a numerical pattern, containing unipolar values in the range 0 .. 1\nReturns a new pattern with values scaled to the given min/max range,\nfollowing an exponential curve.</p>",
+    signatures: [
+      {
+        label: "rangex()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "range2",
+    detail: "Pattern.range2/math",
+    documentation:
+      "<p>Assumes a numerical pattern, containing bipolar values in the range -1 .. 1\nReturns a new pattern with values scaled to the given min/max range.</p>",
+    signatures: [
+      {
+        label: "range2()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "ratio",
+    detail: "Pattern.ratio/math",
+    documentation:
+      "<p>Allows dividing numbers via list notation using &quot;:&quot;.\nReturns a new pattern with just numbers.</p>",
+    signatures: [
+      {
+        label: "ratio()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "compress",
+    detail: "compress/temporal",
+    documentation:
+      "<p>Compress each cycle into the given timespan, leaving a gap</p>",
+    signatures: [
+      {
+        label: "compress()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "fastGap",
+    detail: "fastGap/temporal",
+    documentation:
+      "<p>speeds up a pattern like fast, but rather than it playing multiple times as fast would it instead leaves a gap in the remaining space of the cycle. For example, the following will play the sound pattern &quot;bd sn&quot; only once but compressed into the first half of the cycle, i.e. twice as fast.</p>",
+    signatures: [
+      {
+        label: "fastGap()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "focus",
+    detail: "focus/temporal",
+    documentation:
+      "<p>Similar to <code>compress</code>, but doesn't leave gaps, and the 'focus' can be bigger than a cycle</p>",
+    signatures: [
+      {
+        label: "focus()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "ply",
+    detail: "ply/temporal",
+    documentation:
+      "<p>The ply function repeats each event the given number of times.</p>",
+    signatures: [
+      {
+        label: "ply()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "fast",
+    detail: "Pattern.fast/temporal",
+    documentation:
+      "<p>Speed up a pattern by the given factor. Used by &quot;*&quot; in mini notation.</p>",
+    signatures: [
+      {
+        label: "fast(factor)",
+        parameters: [
+          {
+            label: "number factor",
+            documentation: "<p>speed up factor</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "hurry",
+    detail: "hurry/temporal",
+    documentation:
+      "<p>Both speeds up the pattern (like 'fast') and the sample playback (like 'speed').</p>",
+    signatures: [
+      {
+        label: "hurry()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "slow",
+    detail: "Pattern.slow/temporal",
+    documentation:
+      "<p>Slow down a pattern over the given number of cycles. Like the &quot;/&quot; operator in mini notation.</p>",
+    signatures: [
+      {
+        label: "slow(factor)",
+        parameters: [
+          {
+            label: "number factor",
+            documentation: "<p>slow down factor</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "inside",
+    detail: "inside/temporal",
+    documentation: "<p>Carries out an operation 'inside' a cycle.</p>",
+    signatures: [
+      {
+        label: "inside()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "outside",
+    detail: "outside/temporal",
+    documentation: "<p>Carries out an operation 'outside' a cycle.</p>",
+    signatures: [
+      {
+        label: "outside()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "lastOf",
+    detail: "Pattern.lastOf/temporal",
+    documentation:
+      "<p>Applies the given function every n cycles, starting from the last cycle.</p>",
+    signatures: [
+      {
+        label: "lastOf(n, func)",
+        parameters: [
+          {
+            label: "number n",
+            documentation: "<p>how many cycles</p>",
+          },
+          {
+            label: "function func",
+            documentation: "<p>function to apply</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "firstOf",
+    detail: "Pattern.firstOf/temporal",
+    documentation:
+      "<p>Applies the given function every n cycles, starting from the first cycle.</p>",
+    signatures: [
+      {
+        label: "firstOf(n, func)",
+        parameters: [
+          {
+            label: "number n",
+            documentation: "<p>how many cycles</p>",
+          },
+          {
+            label: "function func",
+            documentation: "<p>function to apply</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "every",
+    detail: "Pattern.every/temporal",
+    documentation: "<p>An alias for <code>firstOf</code></p>",
+    signatures: [
+      {
+        label: "every(n, func)",
+        parameters: [
+          {
+            label: "number n",
+            documentation: "<p>how many cycles</p>",
+          },
+          {
+            label: "function func",
+            documentation: "<p>function to apply</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "apply",
+    detail: "apply/combiners",
+    documentation:
+      "<p>Applies the given function to the pattern. Like layer, but with a single function:</p>",
+    signatures: [
+      {
+        label: "apply()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "cpm",
+    detail: "cpm/temporal",
+    documentation: "<p>Plays the pattern at the given cycles per minute.</p>",
+    signatures: [
+      {
+        label: "cpm()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "early",
+    detail: "Pattern.early/temporal",
+    documentation:
+      "<p>Nudge a pattern to start earlier in time. Equivalent of Tidal's &lt;~ operator</p>",
+    signatures: [
+      {
+        label: "early(cycles)",
+        parameters: [
+          {
+            label: "number cycles",
+            documentation: "<p>number of cycles to nudge left</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "late",
+    detail: "Pattern.late/temporal",
+    documentation:
+      "<p>Nudge a pattern to start later in time. Equivalent of Tidal's ~&gt; operator</p>",
+    signatures: [
+      {
+        label: "late(cycles)",
+        parameters: [
+          {
+            label: "number cycles",
+            documentation: "<p>number of cycles to nudge right</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "zoom",
+    detail: "zoom/temporal",
+    documentation:
+      "<p>Plays a portion of a pattern, specified by the beginning and end of a time span. The new resulting pattern is played over the time period of the original pattern:</p>",
+    signatures: [
+      {
+        label: "zoom()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "bite",
+    detail: "bite/temporal",
+    documentation:
+      "<p>Splits a pattern into the given number of slices, and plays them according to a pattern of slice numbers.\nSimilar to <code>slice</code>, but slices up patterns rather than sound samples.</p>",
+    signatures: [
+      {
+        label: "bite(number, slices)",
+        parameters: [
+          {
+            label: "number number",
+            documentation: "<p>of slices</p>",
+          },
+          {
+            label: "number slices",
+            documentation: "<p>to play</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "isobite",
+    detail: "Pattern.isobite/temporal",
+    documentation:
+      "<p>Similar to <code>struct</code>, but every hap in the structure pattern plays the next\ncycle of the main pattern.\nWith a different number of cycles in the main pattern and haps in the\nstructure pattern, this creates an isorhythm.</p>\n<p>Note: This function works on the assumption that the structure pattern\nrepeats every cycle. If the structure pattern only repeats after multiple\ncycles, it may skip or repeat certain parts of the melody.</p>",
+    signatures: [
+      {
+        label: "isobite(structure)",
+        parameters: [
+          {
+            label: "Pattern structure",
+            documentation: "<p>structure of the pattern</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "linger",
+    detail: "linger/temporal",
+    documentation:
+      "<p>Selects the given fraction of the pattern and repeats that part to fill the remainder of the cycle.</p>",
+    signatures: [
+      {
+        label: "linger(fraction)",
+        parameters: [
+          {
+            label: "number fraction",
+            documentation: "<p>fraction to select</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "segment",
+    detail: "segment/temporal",
+    documentation:
+      "<p>Samples the pattern at a rate of n events per cycle. Useful for turning a continuous pattern into a discrete one.</p>",
+    signatures: [
+      {
+        label: "segment(segments)",
+        parameters: [
+          {
+            label: "number segments",
+            documentation: "<p>number of segments per cycle</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "swingBy",
+    detail: "swingBy/temporal",
+    documentation:
+      "<p>The function <code>swingBy x n</code> breaks each cycle into <code>n</code> slices, and then delays events in the second half of each slice by the amount <code>x</code>, which is relative to the size of the (half) slice. So if <code>x</code> is 0 it does nothing, <code>0.5</code> delays for half the note duration, and 1 will wrap around to doing nothing again. The end result is a shuffle or swing-like rhythm</p>",
+    signatures: [
+      {
+        label: "swingBy(subdivision, offset)",
+        parameters: [
+          {
+            label: "number subdivision",
+          },
+          {
+            label: "number offset",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "swing",
+    detail: "swing/temporal",
+    documentation: "<p>Shorthand for swingBy with 1/3:</p>",
+    signatures: [
+      {
+        label: "swing(subdivision)",
+        parameters: [
+          {
+            label: "number subdivision",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "invert",
+    detail: "invert/temporal",
+    documentation: "<p>Swaps 1s and 0s in a binary pattern.</p>",
+    signatures: [
+      {
+        label: "invert()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "when",
+    detail: "Pattern.when/temporal",
+    documentation:
+      "<p>Applies the given function whenever the given pattern is in a true state.</p>",
+    signatures: [
+      {
+        label: "when(binary_pat, func)",
+        parameters: [
+          {
+            label: "Pattern binary_pat",
+          },
+          {
+            label: "function func",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "off",
+    detail: "Pattern.off/temporal",
+    documentation:
+      "<p>Superimposes the function result on top of the original pattern, delayed by the given time.</p>",
+    signatures: [
+      {
+        label: "off(time, func)",
+        parameters: [
+          {
+            label: "Pattern time",
+            documentation: "<p>offset time</p>",
+          },
+          {
+            label: "function func",
+            documentation: "<p>function to apply</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "brak",
+    detail: "Pattern.brak/temporal",
+    documentation:
+      "<p>Returns a new pattern where every other cycle is played once, twice as\nfast, and offset in time by one quarter of a cycle. Creates a kind of\nbreakbeat feel.</p>",
+    signatures: [
+      {
+        label: "brak()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "rev",
+    detail: "Pattern.rev/temporal",
+    documentation:
+      "<p>Reverse all cycles in a pattern. See also <code>revv</code> for reversing a whole pattern.</p>",
+    signatures: [
+      {
+        label: "rev()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "revv",
+    detail: "Pattern.revv/temporal",
+    documentation:
+      "<p>Reverse a whole pattern. See also <code>rev</code> for reversing each cycle.</p>",
+    signatures: [
+      {
+        label: "revv()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "pressBy",
+    detail: "pressBy/temporal",
+    documentation:
+      "<p>Like press, but allows you to specify the amount by which each\nevent is shifted. pressBy(0.5) is the same as press, while\npressBy(1/3) shifts each event by a third of its timespan.</p>",
+    signatures: [
+      {
+        label: "pressBy()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "press",
+    detail: "press/temporal",
+    documentation:
+      "<p>Syncopates a rhythm, by shifting each event halfway into its timespan.</p>",
+    signatures: [
+      {
+        label: "press()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "hush",
+    detail: "Pattern#hush/temporal",
+    documentation: "<p>Silences a pattern.</p>",
+    signatures: [
+      {
+        label: "hush()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "palindrome",
+    detail: "palindrome/temporal",
+    documentation:
+      "<p>Applies <code>rev</code> to a pattern every other cycle, so that the pattern alternates between forwards and backwards.</p>",
+    signatures: [
+      {
+        label: "palindrome()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "juxBy",
+    detail: "juxBy/temporal",
+    documentation:
+      "<p>Jux with adjustable stereo width. 0 = mono, 1 = full stereo.</p>",
+    signatures: [
+      {
+        label: "juxBy()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "juxFlipBy",
+    detail: "juxFlipBy",
+    documentation: "<p>Like juxBy, except it flips the ears each cycle.</p>",
+    signatures: [
+      {
+        label: "juxFlipBy()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "jux",
+    detail: "jux/temporal,superdough",
+    documentation:
+      "<p>The jux function creates strange stereo effects, by applying a function to a pattern, but only in the right-hand channel.</p>",
+    signatures: [
+      {
+        label: "jux()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "juxFlip",
+    detail: "juxFlip",
+    documentation: "<p>Like jux, but flips the ears each cycle.</p>",
+    signatures: [
+      {
+        label: "juxFlip()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "echoWith",
+    detail: "echoWith/temporal,functional",
+    documentation:
+      "<p>Superimpose and offset multiple times, applying the given function each time.</p>",
+    signatures: [
+      {
+        label: "echoWith(times, time, func)",
+        parameters: [
+          {
+            label: "number times",
+            documentation: "<p>how many times to repeat</p>",
+          },
+          {
+            label: "number time",
+            documentation: "<p>cycle offset between iterations</p>",
+          },
+          {
+            label: "function func",
+            documentation:
+              "<p>function to apply, given the pattern and the iteration index</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "echo",
+    detail: "Pattern.echo/temporal",
+    documentation:
+      "<p>Superimpose and offset multiple times, gradually decreasing the velocity</p>",
+    signatures: [
+      {
+        label: "echo(times, time, feedback)",
+        parameters: [
+          {
+            label: "number times",
+            documentation: "<p>how many times to repeat</p>",
+          },
+          {
+            label: "number time",
+            documentation: "<p>cycle offset between iterations</p>",
+          },
+          {
+            label: "number feedback",
+            documentation: "<p>velocity multiplicator for each iteration</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "stut",
+    detail: "stut/temporal",
+    documentation:
+      "<p>Deprecated. Like echo, but the last 2 parameters are flipped.</p>",
+    signatures: [
+      {
+        label: "stut(times, feedback, time)",
+        parameters: [
+          {
+            label: "number times",
+            documentation: "<p>how many times to repeat</p>",
+          },
+          {
+            label: "number feedback",
+            documentation: "<p>velocity multiplicator for each iteration</p>",
+          },
+          {
+            label: "number time",
+            documentation: "<p>cycle offset between iterations</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "plyWith",
+    detail: "plyWith/temporal",
+    documentation:
+      "<p>The plyWith function repeats each event the given number of times, applying the given function to each event.\\n</p>",
+    signatures: [
+      {
+        label: "plyWith(factor, func)",
+        parameters: [
+          {
+            label: "number factor",
+            documentation: "<p>how many times to repeat</p>",
+          },
+          {
+            label: "function func",
+            documentation: "<p>function to apply, given the pattern</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "plyForEach",
+    detail: "plyForEach/temporal",
+    documentation:
+      "<p>The plyForEach function repeats each event the given number of times, applying the given function to each event.\nThis version of ply uses the iteration index as an argument to the function, similar to echoWith.</p>",
+    signatures: [
+      {
+        label: "plyForEach(factor, func)",
+        parameters: [
+          {
+            label: "number factor",
+            documentation: "<p>how many times to repeat</p>",
+          },
+          {
+            label: "function func",
+            documentation:
+              "<p>function to apply, given the pattern and the iteration index</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "iter",
+    detail: "Pattern.iter/temporal",
+    documentation:
+      "<p>Divides a pattern into a given number of subdivisions, plays the subdivisions in order, but increments the starting subdivision each cycle. The pattern wraps to the first subdivision after the last subdivision is played.</p>",
+    signatures: [
+      {
+        label: "iter()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "iterBack",
+    detail: "Pattern.iterBack/temporal",
+    documentation:
+      "<p>Like <code>iter</code>, but plays the subdivisions in reverse order. Known as iter' in tidalcycles</p>",
+    signatures: [
+      {
+        label: "iterBack()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "repeatCycles",
+    detail: "Pattern.repeatCycles/temporal",
+    documentation: "<p>Repeats each cycle the given number of times.</p>",
+    signatures: [
+      {
+        label: "repeatCycles()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "chunk",
+    detail: "Pattern.chunk/temporal,functional",
+    documentation:
+      "<p>Divides a pattern into a given number of parts, then cycles through those parts in turn, applying the given function to each part in turn (one part per cycle).</p>",
+    signatures: [
+      {
+        label: "chunk()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "chunkBack",
+    detail: "Pattern.chunkBack/temporal",
+    documentation:
+      "<p>Like <code>chunk</code>, but cycles through the parts in reverse order. Known as chunk' in tidalcycles</p>",
+    signatures: [
+      {
+        label: "chunkBack()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "fastChunk",
+    detail: "Pattern.fastChunk/temporal",
+    documentation:
+      "<p>Like <code>chunk</code>, but the cycles of the source pattern aren't repeated\nfor each set of chunks.</p>",
+    signatures: [
+      {
+        label: "fastChunk()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "chunkInto",
+    detail: "Pattern.chunkInto/temporal",
+    documentation:
+      "<p>Like <code>chunk</code>, but the function is applied to a looped subcycle of the source pattern.</p>",
+    signatures: [
+      {
+        label: "chunkInto()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "chunkBackInto",
+    detail: "Pattern.chunkBackInto/temporal",
+    documentation:
+      "<p>Like <code>chunkInto</code>, but moves backwards through the chunks.</p>",
+    signatures: [
+      {
+        label: "chunkBackInto()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "ribbon",
+    detail: "ribbon/temporal",
+    documentation:
+      "<p>Loops the pattern inside an <code>offset</code> for <code>cycles</code>.\nIf you think of the entire span of time in cycles as a ribbon, you can cut a single piece and loop it.</p>",
+    signatures: [
+      {
+        label: "ribbon(offset, cycles)",
+        parameters: [
+          {
+            label: "number offset",
+            documentation: "<p>start point of loop in cycles</p>",
+          },
+          {
+            label: "number cycles",
+            documentation: "<p>loop length in cycles</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "hsla",
+    detail: "hsla/visualization",
+    documentation:
+      '<p>Sets the pattern\'s color to the given <a href="https://www.w3schools.com/htmL/html_colors_hsl.asp">hsla</a></p>',
+    signatures: [
+      {
+        label: "hsla(hue, saturation, lightness, alpha)",
+        parameters: [
+          {
+            label: "Number hue",
+            documentation: "<p>(0 - 360)</p>",
+          },
+          {
+            label: "Number saturation",
+            documentation: "<p>percentage (0 - 100)</p>",
+          },
+          {
+            label: "Number lightness",
+            documentation: "<p>percentage (0 - 100)</p>",
+          },
+          {
+            label: "Number alpha",
+            documentation: "<p>(transparency) (0.0 - 1.0)</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "hsl",
+    detail: "hsl/visualization",
+    documentation:
+      '<p>Sets the pattern\'s color to the given <a href="https://www.w3schools.com/htmL/html_colors_hsl.asp">hsl</a></p>',
+    signatures: [
+      {
+        label: "hsl(hue, saturation, lightness)",
+        parameters: [
+          {
+            label: "Number hue",
+            documentation: "<p>(0 - 360)</p>",
+          },
+          {
+            label: "Number saturation",
+            documentation: "<p>percentage (0 - 100)</p>",
+          },
+          {
+            label: "Number lightness",
+            documentation: "<p>percentage (0 - 100)</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "tag",
+    detail: "tag/temporal",
+    documentation:
+      "<p>Tags each Hap with an identifier. Good for filtering. The function populates Hap.context.tags (Array).</p>",
+    signatures: [
+      {
+        label: "tag(tag)",
+        parameters: [
+          {
+            label: "string tag",
+            documentation: "<p>anything unique</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "filter",
+    detail: "filter/temporal,functional",
+    documentation: "<p>Filters haps using the given function</p>",
+    signatures: [
+      {
+        label: "filter(test)",
+        parameters: [
+          {
+            label: "function test",
+            documentation: "<p>function to test Hap</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "filterWhen",
+    detail: "filterWhen/temporal,functional",
+    documentation: "<p>Filters haps by their begin time</p>",
+    signatures: [
+      {
+        label: "filterWhen(test)",
+        parameters: [
+          {
+            label: "function test",
+            documentation: "<p>function to test Hap.whole.begin</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "within",
+    detail: "within/temporal,functional",
+    documentation:
+      "<p>Use within to apply a function to only a part of a pattern.</p>",
+    signatures: [
+      {
+        label: "within(start, end, func)",
+        parameters: [
+          {
+            label: "number start",
+            documentation: "<p>start within cycle (0 - 1)</p>",
+          },
+          {
+            label: "number end",
+            documentation:
+              "<p>end within cycle (0 - 1). Must be &gt; start</p>",
+          },
+          {
+            label: "function func",
+            documentation: "<p>function to be applied to the sub-pattern</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "pace",
+    detail: "pace/stepwise",
+    documentation:
+      "<p><em>Experimental</em></p>\n<p>Speeds a pattern up or down, to fit to the given number of steps per cycle.</p>",
+    signatures: [
+      {
+        label: "pace()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "polymeter",
+    detail: "polymeter/stepwise",
+    documentation:
+      "<p><em>Experimental</em></p>\n<p>Aligns the steps of the patterns, creating polymeters. The patterns are repeated until they all fit the cycle. For example, in the below the first pattern is repeated twice, and the second is repeated three times, to fit the lowest common multiple of six steps.</p>",
+    signatures: [
+      {
+        label: "polymeter()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "stepcat",
+    detail: "stepcat/stepwise",
+    documentation:
+      "<p>'Concatenates' patterns like <code>fastcat</code>, but proportional to a number of steps per cycle.\nThe steps can either be inferred from the pattern, or provided as a [length, pattern] pair.\nHas the alias <code>timecat</code>.</p>",
+    signatures: [
+      {
+        label: "stepcat()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "stepalt",
+    detail: "stepalt/stepwise",
+    documentation:
+      "<p><em>Experimental</em></p>\n<p>Concatenates patterns stepwise, according to an inferred 'steps per cycle'.\nSimilar to <code>stepcat</code>, but if an argument is a list, the whole pattern will alternate between the elements in the list.</p>",
+    signatures: [
+      {
+        label: "stepalt()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "take",
+    detail: "take/stepwise",
+    documentation:
+      "<p><em>Experimental</em></p>\n<p>Takes the given number of steps from a pattern (dropping the rest).\nA positive number will take steps from the start of a pattern, and a negative number from the end.</p>",
+    signatures: [
+      {
+        label: "take()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "drop",
+    detail: "drop/stepwise",
+    documentation:
+      "<p><em>Experimental</em></p>\n<p>Drops the given number of steps from a pattern.\nA positive number will drop steps from the start of a pattern, and a negative number from the end.</p>",
+    signatures: [
+      {
+        label: "drop()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "extend",
+    detail: "extend/stepwise",
+    documentation:
+      "<p><em>Experimental</em></p>\n<p><code>extend</code> is similar to <code>fast</code> in that it increases its density, but it also increases the step count\naccordingly. So <code>stepcat(&quot;a b&quot;.extend(2), &quot;c d&quot;)</code> would be the same as <code>&quot;a b a b c d&quot;</code>, whereas\n<code>stepcat(&quot;a b&quot;.fast(2), &quot;c d&quot;)</code> would be the same as <code>&quot;[a b] [a b] c d&quot;</code>.</p>",
+    signatures: [
+      {
+        label: "extend()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "replicate",
+    detail: "replicate/stepwise",
+    documentation:
+      "<p><em>Experimental</em></p>\n<p><code>replicate</code> is similar to <code>extend</code>, except that <code>replicate</code> will &quot;replicate&quot; the thing being extended. This will only differ from <code>extend</code> when the input pattern differs from cycle to cycle.</p>",
+    signatures: [
+      {
+        label: "replicate()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "expand",
+    detail: "expand/stepwise",
+    documentation:
+      "<p><em>Experimental</em></p>\n<p>Expands the step size of the pattern by the given factor.</p>",
+    signatures: [
+      {
+        label: "expand()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "contract",
+    detail: "contract/stepwise",
+    documentation:
+      "<p><em>Experimental</em></p>\n<p>Contracts the step size of the pattern by the given factor. See also <code>expand</code>.</p>",
+    signatures: [
+      {
+        label: "contract()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "shrink",
+    detail: "shrink/stepwise",
+    documentation:
+      "<p><em>Experimental</em></p>\n<p>Progressively shrinks the pattern by 'n' steps until there's nothing left, or if a second value is given (using mininotation list syntax with <code>:</code>),\nthat number of times.\nA positive number will progressively drop steps from the start of a pattern, and a negative number from the end.</p>",
+    signatures: [
+      {
+        label: "shrink()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "grow",
+    detail: "grow/stepwise",
+    documentation:
+      "<p><em>Experimental</em></p>\n<p>Progressively grows the pattern by 'n' steps until the full pattern is played, or if a second value is given (using mininotation list syntax with <code>:</code>),\nthat number of times.\nA positive number will progressively grow steps from the start of a pattern, and a negative number from the end.</p>",
+    signatures: [
+      {
+        label: "grow()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "tour",
+    detail: "tour/stepwise",
+    documentation:
+      "<p><em>Experimental</em></p>\n<p>Inserts a pattern into a list of patterns. On the first repetition it will be inserted at the end of the list, then moved backwards through the list\non successive repetitions. The patterns are added together stepwise, with all repetitions taking place over a single cycle. Using <code>pace</code> to set the\nnumber of steps per cycle is therefore usually recommended.</p>",
+    signatures: [
+      {
+        label: "tour()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "zip",
+    detail: "zip/stepwise",
+    documentation:
+      "<p><em>Experimental</em></p>\n<p>'zips' together the steps of the provided patterns. This can create a long repetition, taking place over a single, dense cycle.\nUsing <code>pace</code> to set the number of steps per cycle is therefore usually recommended.</p>",
+    signatures: [
+      {
+        label: "zip()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "timecat",
+    detail: "timecat",
+    documentation: "<p>Aliases for <code>stepcat</code></p>",
+    signatures: [
+      {
+        label: "timecat()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "chop",
+    detail: "Pattern.chop/samples",
+    documentation:
+      "<p>Cuts each sample into the given number of parts, allowing you to explore a technique known as 'granular synthesis'.\nIt turns a pattern of samples into a pattern of parts of samples.</p>",
+    signatures: [
+      {
+        label: "chop()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "striate",
+    detail: "Pattern.striate/samples",
+    documentation:
+      "<p>Cuts each sample into the given number of parts, triggering progressive portions of each sample at each loop.</p>",
+    signatures: [
+      {
+        label: "striate()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "loopAt",
+    detail: "Pattern.loopAt/samples,pitch",
+    documentation:
+      "<p>Makes the sample fit the given number of cycles by changing the speed.</p>",
+    signatures: [
+      {
+        label: "loopAt()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "slice",
+    detail: "Pattern.slice/samples",
+    documentation:
+      "<p>Chops samples into the given number of slices, triggering those slices with a given pattern of slice numbers.\nInstead of a number, it also accepts a list of numbers from 0 to 1 to slice at specific points.</p>",
+    signatures: [
+      {
+        label: "slice()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "onTriggerTime",
+    detail: "Pattern.onTriggerTime/external_io",
+    documentation:
+      "<p>make something happen on event time\nuses browser timeout which is innacurate for audio tasks</p>",
+    signatures: [
+      {
+        label: "onTriggerTime()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "splice",
+    detail: "splice/samples,pitch",
+    documentation:
+      "<p>Works the same as slice, but changes the playback speed of each slice to match the duration of its step.</p>",
+    signatures: [
+      {
+        label: "splice()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "fit",
+    detail: "fit/samples,pitch",
+    documentation:
+      "<p>Makes the sample fit its event duration. Good for rhythmical loops like drum breaks.\nSimilar to <code>loopAt</code>.</p>",
+    signatures: [
+      {
+        label: "fit()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "loopAtCps",
+    detail: "Pattern.loopAtCps/samples,pitch",
+    documentation:
+      "<p>Makes the sample fit the given number of cycles and cps value, by\nchanging the speed. deprecated: use loopAt or fit instead, together with setCps / setCpm.</p>",
+    signatures: [
+      {
+        label: "loopAtCps()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "ref",
+    detail: "ref/internals",
+    documentation:
+      "<p>exposes a custom value at query time. basically allows mutating state without evaluation</p>",
+    signatures: [
+      {
+        label: "ref()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "xfade",
+    detail: "xfade/amplitude",
+    documentation:
+      "<p>Cross-fades between left and right from 0 to 1:</p>\n<ul>\n<li>0 = (full left, no right)</li>\n<li>.5 = (both equal)</li>\n<li>1 = (no left, full right)</li>\n</ul>",
+    signatures: [
+      {
+        label: "xfade()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "beat",
+    detail: "beat/temporal",
+    documentation:
+      "<p>creates a structure pattern from divisions of a cycle\nespecially useful for creating rhythms</p>",
+    signatures: [
+      {
+        label: "beat()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "morph",
+    detail: "morph/temporal",
+    documentation:
+      "<p>Takes two binary rhythms represented as lists of 1s and 0s, and a number\nbetween 0 and 1 that morphs between them. The two lists should contain the same\nnumber of true values.</p>",
+    signatures: [
+      {
+        label: "morph()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "soft",
+    detail: "soft/distortion,superdough",
+    documentation: "<p>Soft-clipping distortion</p>",
+    signatures: [
+      {
+        label: "soft(distortion, volume)",
+        parameters: [
+          {
+            label: "number distortion",
+            documentation: "<p>amount of distortion to apply</p>",
+          },
+          {
+            label: "number volume",
+            documentation: "<p>linear postgain of the distortion</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "hard",
+    detail: "hard/distortion,superdough",
+    documentation: "<p>Hard-clipping distortion</p>",
+    signatures: [
+      {
+        label: "hard(distortion, volume)",
+        parameters: [
+          {
+            label: "number distortion",
+            documentation: "<p>amount of distortion to apply</p>",
+          },
+          {
+            label: "number volume",
+            documentation: "<p>linear postgain of the distortion</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "cubic",
+    detail: "cubic/distortion,superdough",
+    documentation: "<p>Cubic polynomial distortion</p>",
+    signatures: [
+      {
+        label: "cubic(distortion, volume)",
+        parameters: [
+          {
+            label: "number distortion",
+            documentation: "<p>amount of distortion to apply</p>",
+          },
+          {
+            label: "number volume",
+            documentation: "<p>linear postgain of the distortion</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "diode",
+    detail: "diode/distortion,superdough",
+    documentation: "<p>Diode-emulating distortion</p>",
+    signatures: [
+      {
+        label: "diode(distortion, volume)",
+        parameters: [
+          {
+            label: "number distortion",
+            documentation: "<p>amount of distortion to apply</p>",
+          },
+          {
+            label: "number volume",
+            documentation: "<p>linear postgain of the distortion</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "asym",
+    detail: "asym/distortion,superdough",
+    documentation: "<p>Asymmetrical diode distortion</p>",
+    signatures: [
+      {
+        label: "asym(distortion, volume)",
+        parameters: [
+          {
+            label: "number distortion",
+            documentation: "<p>amount of distortion to apply</p>",
+          },
+          {
+            label: "number volume",
+            documentation: "<p>linear postgain of the distortion</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "fold",
+    detail: "fold/distortion,superdough",
+    documentation: "<p>Wavefolding distortion</p>",
+    signatures: [
+      {
+        label: "fold(distortion, volume)",
+        parameters: [
+          {
+            label: "number distortion",
+            documentation: "<p>amount of distortion to apply</p>",
+          },
+          {
+            label: "number volume",
+            documentation: "<p>linear postgain of the distortion</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "sinefold",
+    detail: "sinefold/distortion,superdough",
+    documentation: "<p>Wavefolding distortion composed with sinusoid</p>",
+    signatures: [
+      {
+        label: "sinefold(distortion, volume)",
+        parameters: [
+          {
+            label: "number distortion",
+            documentation: "<p>amount of distortion to apply</p>",
+          },
+          {
+            label: "number volume",
+            documentation: "<p>linear postgain of the distortion</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "chebyshev",
+    detail: "chebyshev/distortion,superdough",
+    documentation: "<p>Distortion via Chebyshev polynomials</p>",
+    signatures: [
+      {
+        label: "chebyshev(distortion, volume)",
+        parameters: [
+          {
+            label: "number distortion",
+            documentation: "<p>amount of distortion to apply</p>",
+          },
+          {
+            label: "number volume",
+            documentation: "<p>linear postgain of the distortion</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "parray",
+    detail: "parray/combiners",
+    documentation:
+      "<p>Turns a list of patterns into a single pattern which outputs list-values</p>",
+    signatures: [
+      {
+        label: "parray()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "partials",
+    detail: "partials/superdough",
+    documentation:
+      "<p>Scale the magnitude of the harmonics of one of the core synths ('sine', 'tri', 'saw', ..)</p>\n<p>Can also be used to create a new synth via <code>s('user').partials(...)</code></p>",
+    signatures: [
+      {
+        label: "partials(magnitudes)",
+        parameters: [
+          {
+            label: "Array.<number> magnitudes",
+            documentation:
+              "<p>List of [0, 1] magnitudes for partials. 0th entry is the fundamental harmonic (i.e. DC offset is skipped)</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "phases",
+    detail: "phases/superdough",
+    documentation:
+      "<p>Rotates the harmonics of one of the core synths ('sine', 'tri', 'saw', 'user', ..) by a list of phases</p>",
+    signatures: [
+      {
+        label: "phases(phases)",
+        parameters: [
+          {
+            label: "Array.<number> phases",
+            documentation:
+              "<p>List of [0, 1) phases for partials. 0th entry is the fundamental phase (i.e. DC offset is skipped)</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "FX",
+    detail: "Pattern.FX/superdough",
+    documentation:
+      "<p>Establishes an FX chain. Can be called by chaining .FX(fx1).FX(fx2)..\ncalls and/or in a single .FX(fx1, fx2, ..) call. The fx1, .. are <em>patterns</em> which\nestablish the controls of the given effect. See examples.</p>",
+    signatures: [
+      {
+        label: "FX()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "K",
+    detail: "Pattern.K/generators,superdough",
+    documentation:
+      "<p>Produces a <a href=\"https://kabel.salat.dev/\">Kabelsalat</a> modular sound engine.\nThis can be used as either an effect (by including <code>audioin()</code> at the beginning\nof your kabel expression) or as a sound source (via any expression which doesn't\nstart with <code>audioin()</code>).</p>\n<p>Some helpers you have available to you:</p>\n<ul>\n<li>Strudel mini notation works fine in K(..) via &quot;&quot; or ``</li>\n<li>More complex Strudel expressions (like &quot;0 1 2&quot;.fast(4) or irand(24)) can be\nwritten by wrapping them in <code>S(..)</code> inside your Kabel code</li>\n<li>We expose Strudel's note frequency under <code>sFreq</code> and Strudel's gate\ninformation under <code>sGate</code></li>\n<li>You can use more complex multi-line expressions (like <code>let x = a; let y = b; x.lpf(y);</code>)\nby wrapping them inside a function in K (see example).</li>\n</ul>",
+    signatures: [
+      {
+        label: "K(expr)",
+        parameters: [
+          {
+            label: "KabelsalatExpression expr",
+            documentation: "<p>Kabelsalat graph definition</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "worklet",
+    detail: "Pattern.worklet/noautocomplete",
+    documentation:
+      "<p>Creates a worklet effect. Typically derived by writing K(...) in the REPL which will parse\nKabelsalat code.</p>",
+    signatures: [
+      {
+        label: "worklet(src, inputs)",
+        parameters: [
+          {
+            label: "string src",
+            documentation: "<p>Source code of the worklet update function</p>",
+          },
+          {
+            label: "number inputs",
+            documentation: "<p>Worklet inputs</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "base",
+    detail: "base/generators",
+    documentation:
+      "<p>Creates a pattern of numbers in base b from a number or pattern of numbers\nlimited to d digits long from the right</p>",
+    signatures: [
+      {
+        label: "base(n, b, d)",
+        parameters: [
+          {
+            label: "number n",
+            documentation:
+              "<p>number to convert (can be a pattern or array)</p>",
+          },
+          {
+            label: "number b",
+            documentation:
+              "<p>base to convert to (defaults to 10) (can be a pattern)</p>",
+          },
+          {
+            label: "number d",
+            documentation:
+              "<p>max number of digits to produce for each n (defaults to 0 for all) (can be a pattern)</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "pick",
+    detail: "pick/combiners",
+    documentation:
+      "<p>Picks patterns (or plain values) either from a list (by index) or a lookup table (by name).\nSimilar to <code>inhabit</code>, but maintains the structure of the original patterns.</p>",
+    signatures: [
+      {
+        label: "pick(pat, xs)",
+        parameters: [
+          {
+            label: "Pattern pat",
+          },
+          {
+            label: "* xs",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "pickmod",
+    detail: "pickmod/combiners",
+    documentation:
+      "<p>The same as <code>pick</code>, but if you pick a number greater than the size of the list,\nit wraps around, rather than sticking at the maximum value.\nFor example, if you pick the fifth pattern of a list of three, you'll get the\nsecond one.</p>",
+    signatures: [
+      {
+        label: "pickmod(pat, xs)",
+        parameters: [
+          {
+            label: "Pattern pat",
+          },
+          {
+            label: "* xs",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "pickF",
+    detail: "pickF/combiners,functional",
+    documentation:
+      "<p>pickF lets you use a pattern of numbers to pick which function to apply to another pattern.</p>",
+    signatures: [
+      {
+        label: "pickF(pat, lookup, lookup)",
+        parameters: [
+          {
+            label: "Pattern pat",
+          },
+          {
+            label: "Pattern lookup",
+            documentation: "<p>a pattern of indices or names</p>",
+          },
+          {
+            label: "Array.<function()> lookup",
+            documentation:
+              "<p>the array or lookup object of functions from which to pull</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "pickmodF",
+    detail: "pickmodF/combiners",
+    documentation:
+      "<p>The same as <code>pickF</code>, but if you pick a number greater than the size of the functions list,\nit wraps around, rather than sticking at the maximum value.</p>",
+    signatures: [
+      {
+        label: "pickmodF(pat, lookup, lookup)",
+        parameters: [
+          {
+            label: "Pattern pat",
+          },
+          {
+            label: "Pattern lookup",
+            documentation: "<p>a pattern of indices or names</p>",
+          },
+          {
+            label: "Array.<function()> lookup",
+            documentation:
+              "<p>the array or lookup object of functions from which to pull</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "pickOut",
+    detail: "pickOut/combiners",
+    documentation:
+      "<p>Similar to <code>pick</code>, but it applies an outerJoin instead of an innerJoin.</p>",
+    signatures: [
+      {
+        label: "pickOut(pat, xs)",
+        parameters: [
+          {
+            label: "Pattern pat",
+          },
+          {
+            label: "* xs",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "pickmodOut",
+    detail: "pickmodOut/combiners",
+    documentation:
+      "<p>The same as <code>pickOut</code>, but if you pick a number greater than the size of the list,\nit wraps around, rather than sticking at the maximum value.</p>",
+    signatures: [
+      {
+        label: "pickmodOut(pat, xs)",
+        parameters: [
+          {
+            label: "Pattern pat",
+          },
+          {
+            label: "* xs",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "pickRestart",
+    detail: "pickRestart/combiners",
+    documentation:
+      "<p>Similar to <code>pick</code>, but the choosen pattern is restarted when its index is triggered.</p>",
+    signatures: [
+      {
+        label: "pickRestart(pat, xs)",
+        parameters: [
+          {
+            label: "Pattern pat",
+          },
+          {
+            label: "* xs",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "pickmodRestart",
+    detail: "pickmodRestart/combiners",
+    documentation:
+      "<p>The same as <code>pickRestart</code>, but if you pick a number greater than the size of the list,\nit wraps around, rather than sticking at the maximum value.</p>",
+    signatures: [
+      {
+        label: "pickmodRestart(pat, xs)",
+        parameters: [
+          {
+            label: "Pattern pat",
+          },
+          {
+            label: "* xs",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "pickReset",
+    detail: "pickReset/combiners",
+    documentation:
+      "<p>Similar to <code>pick</code>, but the choosen pattern is reset when its index is triggered.</p>",
+    signatures: [
+      {
+        label: "pickReset(pat, xs)",
+        parameters: [
+          {
+            label: "Pattern pat",
+          },
+          {
+            label: "* xs",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "pickmodReset",
+    detail: "pickmodReset/combiners",
+    documentation:
+      "<p>The same as <code>pickReset</code>, but if you pick a number greater than the size of the list,\nit wraps around, rather than sticking at the maximum value.</p>",
+    signatures: [
+      {
+        label: "pickmodReset(pat, xs)",
+        parameters: [
+          {
+            label: "Pattern pat",
+          },
+          {
+            label: "* xs",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "inhabit",
+    detail: "inhabit/combiners",
+    documentation:
+      "<p>Picks patterns (or plain values) either from a list (by index) or a lookup table (by name).\nSimilar to <code>pick</code>, but cycles are squeezed into the target ('inhabited') pattern.</p>",
+    signatures: [
+      {
+        label: "inhabit(pat, xs)",
+        parameters: [
+          {
+            label: "Pattern pat",
+          },
+          {
+            label: "* xs",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "inhabitmod",
+    detail: "inhabitmod/combiners",
+    documentation:
+      "<p>The same as <code>inhabit</code>, but if you pick a number greater than the size of the list,\nit wraps around, rather than sticking at the maximum value.\nFor example, if you pick the fifth pattern of a list of three, you'll get the\nsecond one.</p>",
+    signatures: [
+      {
+        label: "inhabitmod(pat, xs)",
+        parameters: [
+          {
+            label: "Pattern pat",
+          },
+          {
+            label: "* xs",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "squeeze",
+    detail: "squeeze/combiners",
+    documentation:
+      "<p>Pick from the list of values (or patterns of values) via the index using the given\npattern of integers. The selected pattern will be compressed to fit the duration of the selecting event</p>",
+    signatures: [
+      {
+        label: "squeeze(pat, xs)",
+        parameters: [
+          {
+            label: "Pattern pat",
+          },
+          {
+            label: "* xs",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "setcpm",
+    detail: "setcpm/temporal",
+    documentation:
+      "<p>Changes the global tempo to the given cycles per minute</p>",
+    signatures: [
+      {
+        label: "setcpm(cpm)",
+        parameters: [
+          {
+            label: "number cpm",
+            documentation: "<p>cycles per minute</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "all",
+    detail: "repl~all/combiners",
+    documentation:
+      '<p>Applies a function to all the running patterns. Note that the patterns are grouped together into a single <code>stack</code> before the function is applied. This is probably what you want, but see <code>each</code> for\na version that applies the function to each pattern separately.</p>\n<p><strong>Note:</strong> Patterns must be labeled (e.g. with <code>$:</code>) to be picked up by <code>all</code>. An unlabeled\npattern such as <code>note(&quot;c4&quot;)</code> is not registered and will produce no audio when <code>all</code> is present.\nUse <code>$: note(&quot;c4&quot;)</code> instead.</p>\n<pre class="prettyprint source"><code>$: sound(&quot;bd - cp sd&quot;)\n$: sound(&quot;hh*8&quot;)\nall(fast(&quot;&lt;2 3>&quot;))\n</code></pre>\n<pre class="prettyprint source"><code>$: sound(&quot;bd - cp sd&quot;)\n$: sound(&quot;hh*8&quot;)\nall(x => x.pianoroll())\n</code></pre>',
+    signatures: [
+      {
+        label: "all()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "each",
+    detail: "repl~each/combiners",
+    documentation:
+      "<p>Applies a function to each of the running patterns separately. This is intended for future use with upcoming 'stepwise' features. See <code>all</code> for a version that applies the function to all the patterns stacked together into a single pattern.</p>\n<p><strong>Note:</strong> Patterns must be labeled (e.g. with <code>$:</code>) to be picked up by <code>each</code>. An unlabeled\npattern such as <code>note(&quot;c4&quot;)</code> is not registered and will produce no audio when <code>each</code> is present.\nUse <code>$: note(&quot;c4&quot;)</code> instead.</p>\n<pre class=\"prettyprint source\"><code>$: sound(&quot;bd - cp sd&quot;)\n$: sound(&quot;hh*8&quot;)\neach(fast(&quot;&lt;2 3>&quot;))\n</code></pre>",
+    signatures: [
+      {
+        label: "each()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "getTime",
+    detail: "getTime/internals",
+    signatures: [
+      {
+        label: "getTime()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "getClockTime",
+    detail: "getClockTime/internals",
+    signatures: [
+      {
+        label: "getClockTime()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "getCps",
+    detail: "getCps/internals",
+    signatures: [
+      {
+        label: "getCps()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "signal",
+    detail: "signal/generators",
+    documentation: "<p>Creates a signal given by the input function</p>",
+    signatures: [
+      {
+        label: "signal(func)",
+        parameters: [
+          {
+            label: "* func",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "saw",
+    detail: "saw/generators",
+    documentation: "<p>A sawtooth signal between 0 and 1.</p>",
+    signatures: [
+      {
+        label: "saw()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "saw2",
+    detail: "saw2/generators",
+    documentation:
+      "<p>A sawtooth signal between -1 and 1 (like <code>saw</code>, but bipolar).</p>",
+    signatures: [
+      {
+        label: "saw2()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "isaw",
+    detail: "isaw/generators",
+    documentation:
+      "<p>A sawtooth signal between 1 and 0 (like <code>saw</code>, but flipped).</p>",
+    signatures: [
+      {
+        label: "isaw()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "isaw2",
+    detail: "isaw2/generators",
+    documentation:
+      "<p>A sawtooth signal between 1 and -1 (like <code>saw2</code>, but flipped).</p>",
+    signatures: [
+      {
+        label: "isaw2()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "sine2",
+    detail: "sine2/generators",
+    documentation:
+      "<p>A sine signal between -1 and 1 (like <code>sine</code>, but bipolar).</p>",
+    signatures: [
+      {
+        label: "sine2()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "sine",
+    detail: "sine/generators",
+    documentation: "<p>A sine signal between 0 and 1.</p>",
+    signatures: [
+      {
+        label: "sine()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "cosine",
+    detail: "cosine/generators",
+    documentation: "<p>A cosine signal between 0 and 1.</p>",
+    signatures: [
+      {
+        label: "cosine()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "cosine2",
+    detail: "cosine2/generators",
+    documentation:
+      "<p>A cosine signal between -1 and 1 (like <code>cosine</code>, but bipolar).</p>",
+    signatures: [
+      {
+        label: "cosine2()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "square",
+    detail: "square/generators",
+    documentation: "<p>A square signal between 0 and 1.</p>",
+    signatures: [
+      {
+        label: "square()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "square2",
+    detail: "square2/generators",
+    documentation:
+      "<p>A square signal between -1 and 1 (like <code>square</code>, but bipolar).</p>",
+    signatures: [
+      {
+        label: "square2()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "isquare",
+    detail: "isquare/generators",
+    documentation:
+      "<p>A square signal between 1 and 0 (like <code>square</code> but flipped).</p>",
+    signatures: [
+      {
+        label: "isquare()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "isquare2",
+    detail: "isquare2/generators",
+    documentation:
+      "<p>A square signal between 1 and -1 (like <code>isquare</code>, but bipolar).</p>",
+    signatures: [
+      {
+        label: "isquare2()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "tri",
+    detail: "tri/generators",
+    documentation: "<p>A triangle signal between 0 and 1.</p>",
+    signatures: [
+      {
+        label: "tri()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "tri2",
+    detail: "tri2/generators",
+    documentation:
+      "<p>A triangle signal between -1 and 1 (like <code>tri</code>, but bipolar).</p>",
+    signatures: [
+      {
+        label: "tri2()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "itri",
+    detail: "itri/generators",
+    documentation:
+      "<p>An inverted triangle signal between 1 and 0 (like <code>tri</code>, but flipped).</p>",
+    signatures: [
+      {
+        label: "itri()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "itri2",
+    detail: "itri2/generators",
+    documentation:
+      "<p>An inverted triangle signal between -1 and 1 (like <code>itri</code>, but bipolar).</p>",
+    signatures: [
+      {
+        label: "itri2()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "time",
+    detail: "time/generators",
+    documentation: "<p>A signal representing the cycle time.</p>",
+    signatures: [
+      {
+        label: "time()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "mousex",
+    detail: "mousex/external_io",
+    documentation: "<p>The mouse's x position value ranges from 0 to 1.</p>",
+    signatures: [
+      {
+        label: "mousex()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "mousey",
+    detail: "mousey/external_io",
+    documentation: "<p>The mouse's y position value ranges from 0 to 1.</p>",
+    signatures: [
+      {
+        label: "mousey()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "useRNG",
+    detail: "useRNG/generators,math",
+    documentation:
+      "<p>Sets which random number generator to use. Historically Strudel would\nuse <code>useRNG('legacy')</code>, which remains the default. To use a new more statistically\nprecise RNG, try <code>useRNG('precise')</code>.</p>",
+    signatures: [
+      {
+        label: "useRNG(mod)",
+        parameters: [
+          {
+            label: "string mod",
+            documentation: "<p>Mode. One of 'legacy', 'precise'</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "run",
+    detail: "run/generators",
+    documentation: "<p>A discrete pattern of numbers from 0 to n-1</p>",
+    signatures: [
+      {
+        label: "run()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "binary",
+    detail: "binary/generators",
+    documentation: "<p>Creates a binary pattern from a number.</p>",
+    signatures: [
+      {
+        label: "binary(n)",
+        parameters: [
+          {
+            label: "number n",
+            documentation: "<p>input number to convert to binary</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "binaryN",
+    detail: "binaryN/generators",
+    documentation:
+      "<p>Creates a binary pattern from a number, padded to n bits long.</p>",
+    signatures: [
+      {
+        label: "binaryN(n, nBits)",
+        parameters: [
+          {
+            label: "number n",
+            documentation: "<p>input number to convert to binary</p>",
+          },
+          {
+            label: "number nBits",
+            documentation: "<p>pattern length, defaults to 16</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "binaryL",
+    detail: "binaryL/generators",
+    documentation: "<p>Creates a binary list pattern from a number.</p>",
+    signatures: [
+      {
+        label: "binaryL(n)",
+        parameters: [
+          {
+            label: "number n",
+            documentation:
+              "<p>input number to convert to binary\ns(&quot;saw&quot;).seg(8)\n.partials(binaryL(irand(4096).add(1)))</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "binaryNL",
+    detail: "binaryNL/generators",
+    documentation:
+      "<p>Creates a binary list pattern from a number, padded to n bits long.</p>",
+    signatures: [
+      {
+        label: "binaryNL(n, nBits)",
+        parameters: [
+          {
+            label: "number n",
+            documentation: "<p>input number to convert to binary</p>",
+          },
+          {
+            label: "number nBits",
+            documentation: "<p>pattern length, defaults to 16</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "randL",
+    detail: "randL/generators",
+    documentation:
+      "<p>Creates a list of random numbers of the given length</p>",
+    signatures: [
+      {
+        label: "randL(n)",
+        parameters: [
+          {
+            label: "number n",
+            documentation: "<p>Number of random numbers to sample</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "shuffle",
+    detail: "shuffle/temporal",
+    documentation:
+      "<p>Slices a pattern into the given number of parts, then plays those parts in random order.\nEach part will be played exactly once per cycle.</p>",
+    signatures: [
+      {
+        label: "shuffle()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "scramble",
+    detail: "scramble/temporal",
+    documentation:
+      "<p>Slices a pattern into the given number of parts, then plays those parts at random. Similar to <code>shuffle</code>,\nbut parts might be played more than once, or not at all, per cycle.</p>",
+    signatures: [
+      {
+        label: "scramble()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "withSeed",
+    detail: "withSeed/math",
+    documentation:
+      "<p>Modify a pattern by applying a function to the <code>randomSeed</code> control if present</p>",
+    signatures: [
+      {
+        label: "withSeed(func, pat)",
+        parameters: [
+          {
+            label: "function func",
+            documentation:
+              "<p>Function from seed (or undefined) to seed (or undefined)</p>",
+          },
+          {
+            label: "Pattern pat",
+            documentation: "<p>Pattern to update</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "seed",
+    detail: "seed/math",
+    documentation:
+      "<p>Change the seed for random signals. Normally, random signals depend on time,\nso two patterns at the same time will have the same random values. Specifying\na new seed changes the signal output by <code>rand</code>. This also affects other functions\nthat use randomness, like <code>shuffle</code> and <code>sometimes</code>.</p>",
+    signatures: [
+      {
+        label: "seed(n)",
+        parameters: [
+          {
+            label: "number n",
+            documentation: "<p>A new seed. Can be any number.</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "rand",
+    detail: "rand/generators",
+    documentation:
+      "<p>A continuous pattern of random numbers, between 0 and 1.</p>",
+    signatures: [
+      {
+        label: "rand()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "rand2",
+    detail: "rand2/generators",
+    documentation:
+      "<p>A continuous pattern of random numbers, between -1 and 1</p>",
+    signatures: [
+      {
+        label: "rand2()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "brandBy",
+    detail: "brandBy/generators",
+    documentation:
+      "<p>A continuous pattern of 0 or 1 (binary random), with a probability for the value being 1</p>",
+    signatures: [
+      {
+        label: "brandBy(probability)",
+        parameters: [
+          {
+            label: "number probability",
+            documentation: "<p>a number between 0 and 1</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "brand",
+    detail: "brand/generators",
+    documentation: "<p>A continuous pattern of 0 or 1 (binary random)</p>",
+    signatures: [
+      {
+        label: "brand()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "irand",
+    detail: "irand/generators",
+    documentation:
+      "<p>A continuous pattern of random integers, between 0 and n-1.</p>",
+    signatures: [
+      {
+        label: "irand(n)",
+        parameters: [
+          {
+            label: "number n",
+            documentation: "<p>max value (exclusive)</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "chooseWith",
+    detail: "chooseWith/temporal",
+    documentation:
+      "<p>Choose from the list of values (or patterns of values) using the given\npattern of numbers, which should be in the range of 0..1</p>",
+    signatures: [
+      {
+        label: "chooseWith(pat, xs)",
+        parameters: [
+          {
+            label: "Pattern pat",
+          },
+          {
+            label: "* xs",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "chooseInWith",
+    detail: "chooseInWith/temporal",
+    documentation:
+      "<p>As with {chooseWith}, but the structure comes from the chosen values, rather\nthan the pattern you're using to choose with.</p>",
+    signatures: [
+      {
+        label: "chooseInWith(pat, xs)",
+        parameters: [
+          {
+            label: "Pattern pat",
+          },
+          {
+            label: "* xs",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "choose",
+    detail: "choose/temporal",
+    documentation: "<p>Chooses randomly from the given list of elements.</p>",
+    signatures: [
+      {
+        label: "choose(xs)",
+        parameters: [
+          {
+            label: "any xs",
+            documentation: "<p>values / patterns to choose from.</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "choose",
+    detail: "Pattern#choose/temporal",
+    documentation:
+      "<p>Chooses from the given list of values (or patterns of values), according\nto the pattern that the method is called on. The pattern should be in\nthe range 0 .. 1.</p>",
+    signatures: [
+      {
+        label: "choose(xs)",
+        parameters: [
+          {
+            label: "any xs",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "choose2",
+    detail: "Pattern#choose2/temporal",
+    documentation:
+      "<p>As with choose, but the pattern that this method is called on should be\nin the range -1 .. 1</p>",
+    signatures: [
+      {
+        label: "choose2(xs)",
+        parameters: [
+          {
+            label: "any xs",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "chooseCycles",
+    detail: "chooseCycles/temporal",
+    documentation: "<p>Picks one of the elements at random each cycle.</p>",
+    signatures: [
+      {
+        label: "chooseCycles()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "wchoose",
+    detail: "wchoose/temporal",
+    documentation:
+      "<p>Chooses randomly from the given list of elements by giving a probability to each element</p>",
+    signatures: [
+      {
+        label: "wchoose(pairs)",
+        parameters: [
+          {
+            label: "any pairs",
+            documentation: "<p>arrays of value and weight</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "wchooseCycles",
+    detail: "wchooseCycles/temporal",
+    documentation:
+      "<p>Picks one of the elements at random each cycle by giving a probability to each element</p>",
+    signatures: [
+      {
+        label: "wchooseCycles()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "perlin",
+    detail: "perlin/generators",
+    documentation:
+      '<p>Generates a continuous pattern of <a href="https://en.wikipedia.org/wiki/Perlin_noise">perlin noise</a>, in the range 0..1.</p>',
+    signatures: [
+      {
+        label: "perlin()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "berlin",
+    detail: "berlin/generators",
+    documentation:
+      "<p>Generates a continuous pattern of [berlin noise](conceived by Jame Coyne and Jade Rowland as a joke but turned out to be surprisingly cool and useful,\nlike perlin noise but with sawtooth waves), in the range 0..1.</p>",
+    signatures: [
+      {
+        label: "berlin()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "degradeByWith",
+    detail: "Pattern.degradeByWith/temporal",
+    documentation:
+      "<p><code>degradeByWith</code> is like <code>degradeBy</code>, but with control over the random or other signal used to filter out the events.</p>\n<p><code>degradeBy(x)</code> is essentially <code>degradeByWith(rand, x)</code></p>\n<p>This allows you to do things other than with <code>rand</code>, see examples below</p>",
+    signatures: [
+      {
+        label: "degradeByWith(test, testAgainst)",
+        parameters: [
+          {
+            label: "Pattern test",
+          },
+          {
+            label: "Pattern testAgainst",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "degradeBy",
+    detail: "Pattern.degradeBy/temporal",
+    documentation:
+      "<p>Randomly removes events from the pattern by a given amount.\n0 = 0% chance of removal\n1 = 100% chance of removal</p>",
+    signatures: [
+      {
+        label: "degradeBy(amount)",
+        parameters: [
+          {
+            label: "number amount",
+            documentation: "<p>a number between 0 and 1</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "degrade",
+    detail: "Pattern.degrade/temporal",
+    documentation:
+      "<p>Randomly removes 50% of events from the pattern. Shorthand for <code>.degradeBy(0.5)</code></p>",
+    signatures: [
+      {
+        label: "degrade()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "undegradeBy",
+    detail: "Pattern.undegradeBy/temporal",
+    documentation:
+      "<p>Inverse of <code>degradeBy</code>: Randomly removes events from the pattern by a given amount.\n0 = 100% chance of removal\n1 = 0% chance of removal\nEvents that would be removed by degradeBy are let through by undegradeBy and vice versa (see second example).</p>",
+    signatures: [
+      {
+        label: "undegradeBy(amount)",
+        parameters: [
+          {
+            label: "number amount",
+            documentation: "<p>a number between 0 and 1</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "undegrade",
+    detail: "Pattern.undegrade/temporal",
+    documentation:
+      "<p>Inverse of <code>degrade</code>: Randomly removes 50% of events from the pattern. Shorthand for <code>.undegradeBy(0.5)</code>\nEvents that would be removed by degrade are let through by undegrade and vice versa (see second example).</p>",
+    signatures: [
+      {
+        label: "undegrade()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "sometimesBy",
+    detail: "Pattern.sometimesBy/temporal",
+    documentation:
+      "<p>Randomly applies the given function by the given probability.\nSimilar to <code>someCyclesBy</code></p>",
+    signatures: [
+      {
+        label: "sometimesBy(probability, function)",
+        parameters: [
+          {
+            label: "number probability",
+            documentation: "<p>a number between 0 and 1</p>",
+          },
+          {
+            label: "function function",
+            documentation: "<p>the transformation to apply</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "sometimes",
+    detail: "Pattern.sometimes/temporal",
+    documentation: "<p>Applies the given function with a 50% chance</p>",
+    signatures: [
+      {
+        label: "sometimes(function)",
+        parameters: [
+          {
+            label: "function function",
+            documentation: "<p>the transformation to apply</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "someCyclesBy",
+    detail: "Pattern.someCyclesBy/temporal",
+    documentation:
+      "<p>Randomly applies the given function by the given probability on a cycle by cycle basis.\nSimilar to <code>sometimesBy</code></p>",
+    signatures: [
+      {
+        label: "someCyclesBy(probability, function)",
+        parameters: [
+          {
+            label: "number probability",
+            documentation: "<p>a number between 0 and 1</p>",
+          },
+          {
+            label: "function function",
+            documentation: "<p>the transformation to apply</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "someCycles",
+    detail: "Pattern.someCycles/temporal",
+    documentation: "<p>Shorthand for <code>.someCyclesBy(0.5, fn)</code></p>",
+    signatures: [
+      {
+        label: "someCycles()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "often",
+    detail: "Pattern.often/temporal",
+    documentation: "<p>Shorthand for <code>.sometimesBy(0.75, fn)</code></p>",
+    signatures: [
+      {
+        label: "often()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "rarely",
+    detail: "Pattern.rarely/temporal",
+    documentation: "<p>Shorthand for <code>.sometimesBy(0.25, fn)</code></p>",
+    signatures: [
+      {
+        label: "rarely()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "almostNever",
+    detail: "Pattern.almostNever/temporal",
+    documentation: "<p>Shorthand for <code>.sometimesBy(0.1, fn)</code></p>",
+    signatures: [
+      {
+        label: "almostNever()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "almostAlways",
+    detail: "Pattern.almostAlways/temporal",
+    documentation: "<p>Shorthand for <code>.sometimesBy(0.9, fn)</code></p>",
+    signatures: [
+      {
+        label: "almostAlways()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "never",
+    detail: "Pattern.never/temporal",
+    documentation:
+      "<p>Shorthand for <code>.sometimesBy(0, fn)</code> (never calls fn)</p>",
+    signatures: [
+      {
+        label: "never()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "always",
+    detail: "Pattern.always/temporal",
+    documentation:
+      "<p>Shorthand for <code>.sometimesBy(1, fn)</code> (always calls fn)</p>",
+    signatures: [
+      {
+        label: "always()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "whenKey",
+    detail: "Pattern.whenKey/external_io",
+    documentation:
+      '<p>Do something on a keypress, or array of keypresses\n<a href="https://developer.mozilla.org/en-US/docs/Web/API/UI_Events/Keyboard_event_key_values">Key name reference</a></p>',
+    signatures: [
+      {
+        label: "whenKey()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "keyDown",
+    detail: "Pattern.keyDown/external_io",
+    documentation:
+      '<p>returns true when a key or array of keys is held\n<a href="https://developer.mozilla.org/en-US/docs/Web/API/UI_Events/Keyboard_event_key_values">Key name reference</a></p>',
+    signatures: [
+      {
+        label: "keyDown()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "cyclesPer",
+    detail: "cyclesPer/temporal",
+    documentation:
+      "<p>A pattern measuring the duration of events,\nin cycles per event. <code>cyclesPer</code> doesn't have structure itself, but takes structure, and therefore\nevent durations, from the pattern that it is combined with.\nFor example <code>cyclesPer.struct(&quot;1 1 [1 1] 1&quot;)</code> would give the same as <code>&quot;0.25 0.25 [0.125 0.125] 0.25&quot;</code>.\nSee also its reciprocal, <code>per</code>, also known as <code>perCycle</code>.</p>",
+    signatures: [
+      {
+        label: "cyclesPer()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "per",
+    detail: "per/temporal",
+    documentation:
+      "<p>A pattern measuring the 'shortness' of events, or in other words, the duration of pattern events,\nin events per cycle. <code>per</code> doesn't have structure itself, but takes structure, and therefore\nevent durations, from the pattern that it is combined with.\nFor example <code>per.struct(&quot;1 1 [1 1] 1&quot;)</code> would give the same as <code>&quot;4 4 [8 8] 4&quot;</code>.\nSee also its reciprocal, <code>cyclesPer</code>.</p>",
+    signatures: [
+      {
+        label: "per()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "perx",
+    detail: "perx/temporal",
+    documentation:
+      "<p>Like <code>per</code> but measures the shortness of events according to an exponential curve. In\nparticular, where the event duration halves, the\nreturned value increases by one. <code>perx.struct(&quot;1 1 [1 [1 1]] 1&quot;)</code> would therefore be\nthe same as <code>&quot;3 3 [4 [5 5]] 3&quot;</code>.</p>",
+    signatures: [
+      {
+        label: "perx()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "open",
+    detail: "open/temporal",
+    documentation:
+      "<p>A signal that goes from <code>0</code> to <code>1</code> over one cycle, and then stays at <code>1</code> forever.\nMainly useful in combination with other functions that reset the cycle. See also\n<code>close</code>.</p>",
+    signatures: [
+      {
+        label: "open()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "close",
+    detail: "close/temporal",
+    documentation:
+      "<p>The same as <code>open</code>, but goes from <code>1</code> to <code>0</code> over one cycle, and then\nstays on <code>0</code> forever.</p>",
+    signatures: [
+      {
+        label: "close()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "midi2note",
+    detail: "midi2note/noautocomplete",
+    signatures: [
+      {
+        label: "midi2note()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "getFrequency",
+    detail: "getFrequency/pitch",
+    documentation:
+      "<p>Given a hap, returns the frequency of the note or freq, if defined</p>\n<p>Given a note, returns the frequency of that note\n<code>getFreq('c3')</code></p>\n<p>Given a midi note number, returns the frequency of that midi note\n<code>getFreq('c3')</code></p>",
+    signatures: [
+      {
+        label: "getFrequency(input)",
+        parameters: [
+          {
+            label: "Hap input",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "csoundm",
+    detail: "csoundm/external_io",
+    documentation:
+      "<p>Sends notes to Csound for rendering with MIDI semantics. The hap value is\ntranslated to these Csound pfields:</p>\n<p>p1 -- Csound instrument either as a number (1-based, can be a fraction),\nor as a string name.\np2 -- time in beats (usually seconds) from start of performance.\np3 -- duration in beats (usually seconds).\np4 -- MIDI key number (as a real number, not an integer but in [0, 127].\np5 -- MIDI velocity (as a real number, not an integer but in [0, 127].\np6 -- Strudel controls, as a string.</p>",
+    signatures: [
+      {
+        label: "csoundm()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "initDough",
+    detail: "Pattern.initDough/external_io",
+    documentation:
+      "<p>initializes dough ahead of time. you don't need to use this, but if you do, you can await it, so dough is ready before the pattern starts.</p>",
+    signatures: [
+      {
+        label: "initDough()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "dough",
+    detail: "Pattern.dough/external_io",
+    documentation:
+      "<p>Uses dough as the audio engine. more info at https://dough.strudel.cc</p>",
+    signatures: [
+      {
+        label: "dough()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "pianoroll",
+    detail: "pianoroll/visualization",
+    documentation:
+      "<p>Visualises a pattern as a scrolling 'pianoroll', displayed in the background of the editor. To show a pianoroll for all running patterns, use <code>all(pianoroll)</code>. To have a pianoroll appear below\na pattern instead, prefix with <code>_</code>, e.g.: <code>sound(&quot;bd sd&quot;)._pianoroll()</code>.</p>",
+    signatures: [
+      {
+        label:
+          "pianoroll(options, cycles, playhead, vertical, labels, flipTime, flipValues, overscan, hideNegative, smear, fold, active, inactive, background, playheadColor, fill, fillActive, stroke, strokeActive, hideInactive, colorizeInactive, fontFamily, minMidi, maxMidi, autorange)",
+        parameters: [
+          {
+            label: "Object options",
+            documentation:
+              "<p>Object containing all the optional following parameters as key value pairs:</p>",
+          },
+          {
+            label: "integer cycles",
+            documentation:
+              "<p>number of cycles to be displayed at the same time - defaults to 4</p>",
+          },
+          {
+            label: "number playhead",
+            documentation:
+              "<p>location of the active notes on the time axis - 0 to 1, defaults to 0.5</p>",
+          },
+          {
+            label: "boolean vertical",
+            documentation: "<p>displays the roll vertically - 0 by default</p>",
+          },
+          {
+            label: "boolean labels",
+            documentation:
+              "<p>displays labels on individual notes (see the label function) - 0 by default</p>",
+          },
+          {
+            label: "boolean flipTime",
+            documentation:
+              "<p>reverse the direction of the roll - 0 by default</p>",
+          },
+          {
+            label: "boolean flipValues",
+            documentation:
+              "<p>reverse the relative location of notes on the value axis - 0 by default</p>",
+          },
+          {
+            label: "number overscan",
+            documentation:
+              "<p>lookup X cycles outside of the cycles window to display notes in advance - 1 by default</p>",
+          },
+          {
+            label: "boolean hideNegative",
+            documentation:
+              "<p>hide notes with negative time (before starting playing the pattern) - 0 by default</p>",
+          },
+          {
+            label: "boolean smear",
+            documentation: "<p>notes leave a solid trace - 0 by default</p>",
+          },
+          {
+            label: "boolean fold",
+            documentation:
+              "<p>notes takes the full value axis width - 0 by default</p>",
+          },
+          {
+            label: "string active",
+            documentation:
+              "<p>hexadecimal or CSS color of the active notes - defaults to #FFCA28</p>",
+          },
+          {
+            label: "string inactive",
+            documentation:
+              "<p>hexadecimal or CSS color of the inactive notes - defaults to #7491D2</p>",
+          },
+          {
+            label: "string background",
+            documentation:
+              "<p>hexadecimal or CSS color of the background - defaults to transparent</p>",
+          },
+          {
+            label: "string playheadColor",
+            documentation:
+              "<p>hexadecimal or CSS color of the line representing the play head - defaults to white</p>",
+          },
+          {
+            label: "boolean fill",
+            documentation:
+              "<p>notes are filled with color (otherwise only the label is displayed) - 0 by default</p>",
+          },
+          {
+            label: "boolean fillActive",
+            documentation:
+              "<p>active notes are filled with color - 0 by default</p>",
+          },
+          {
+            label: "boolean stroke",
+            documentation:
+              "<p>notes are shown with colored borders - 0 by default</p>",
+          },
+          {
+            label: "boolean strokeActive",
+            documentation:
+              "<p>active notes are shown with colored borders - 0 by default</p>",
+          },
+          {
+            label: "boolean hideInactive",
+            documentation: "<p>only active notes are shown - 0 by default</p>",
+          },
+          {
+            label: "boolean colorizeInactive",
+            documentation:
+              "<p>use note color for inactive notes - 1 by default</p>",
+          },
+          {
+            label: "string fontFamily",
+            documentation:
+              "<p>define the font used by notes labels - defaults to 'monospace'</p>",
+          },
+          {
+            label: "integer minMidi",
+            documentation:
+              "<p>minimum note value to display on the value axis - defaults to 10</p>",
+          },
+          {
+            label: "integer maxMidi",
+            documentation:
+              "<p>maximum note value to display on the value axis - defaults to 90</p>",
+          },
+          {
+            label: "boolean autorange",
+            documentation:
+              "<p>automatically calculate the minMidi and maxMidi parameters - 0 by default</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "wordfall",
+    detail: "wordfall/visualization",
+    documentation:
+      "<p>Displays a vertical pianoroll with event labels.\nSupports all the same options as pianoroll.</p>",
+    signatures: [
+      {
+        label: "wordfall()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "pitchwheel",
+    detail: "pitchwheel/visualization",
+    documentation:
+      "<p>Renders a pitch circle to visualize frequencies within one octave</p>",
+    signatures: [
+      {
+        label:
+          "pitchwheel(hapcircles, circle, edo, root, thickness, hapRadius, mode, margin)",
+        parameters: [
+          {
+            label: "number hapcircles",
+          },
+          {
+            label: "number circle",
+          },
+          {
+            label: "number edo",
+          },
+          {
+            label: "string root",
+          },
+          {
+            label: "number thickness",
+          },
+          {
+            label: "number hapRadius",
+          },
+          {
+            label: "string mode",
+          },
+          {
+            label: "number margin",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "spiral",
+    detail: "spiral/visualization",
+    documentation: "<p>Displays a spiral visual.</p>",
+    signatures: [
+      {
+        label:
+          "spiral(options, stretch, size, thickness, cap, inset, playheadColor, playheadLength, playheadThickness, padding, steady, activeColor, inactiveColor, colorizeInactive, fade, logSpiral)",
+        parameters: [
+          {
+            label: "Object options",
+            documentation:
+              "<p>Object containing all the optional following parameters as key value pairs:</p>",
+          },
+          {
+            label: "number stretch",
+            documentation:
+              "<p>controls the rotations per cycle ratio, where 1 = 1 cycle / 360 degrees</p>",
+          },
+          {
+            label: "number size",
+            documentation: "<p>the diameter of the spiral</p>",
+          },
+          {
+            label: "number thickness",
+            documentation: "<p>line thickness</p>",
+          },
+          {
+            label: "string cap",
+            documentation:
+              "<p>style of line ends: butt (default), round, square</p>",
+          },
+          {
+            label: "string inset",
+            documentation:
+              "<p>number of rotations before spiral starts (default 3)</p>",
+          },
+          {
+            label: "string playheadColor",
+            documentation: "<p>color of playhead, defaults to white</p>",
+          },
+          {
+            label: "number playheadLength",
+            documentation:
+              "<p>length of playhead in rotations, defaults to 0.02</p>",
+          },
+          {
+            label: "number playheadThickness",
+            documentation:
+              "<p>thickness of playheadrotations, defaults to thickness</p>",
+          },
+          {
+            label: "number padding",
+            documentation: "<p>space around spiral</p>",
+          },
+          {
+            label: "number steady",
+            documentation:
+              "<p>steadyness of spiral vs playhead. 1 = spiral doesn't move, playhead does.</p>",
+          },
+          {
+            label: "number activeColor",
+            documentation:
+              "<p>color of active segment. defaults to foreground of theme</p>",
+          },
+          {
+            label: "number inactiveColor",
+            documentation:
+              "<p>color of inactive segments. defaults to gutterForeground of theme</p>",
+          },
+          {
+            label: "boolean colorizeInactive",
+            documentation:
+              "<p>wether or not to colorize inactive segments, defaults to 0</p>",
+          },
+          {
+            label: "boolean fade",
+            documentation:
+              "<p>wether or not past and future should fade out. defaults to 1</p>",
+          },
+          {
+            label: "boolean logSpiral",
+            documentation:
+              "<p>wether or not the spiral should be logarithmic. defaults to 0</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "edoScale",
+    detail: "edoScale",
+    documentation:
+      "<p>Turns numbers into notes in the given EDO scale (zero indexed).</p>\n<p>An EDO scale definition looks like this:</p>\n<p>e.g. C:LLsLLLs:2:1 &lt;- this is the C major scale, 12 EDO</p>\n<p>e.g. C:LLsLLL:3:1 &lt;- this is the Gorgo 6 note scale, 16 EDO</p>\n<p>An EDO scale, e.g. C:LLsLLLs:2:1, consists of a root note (e.g. C)\nfollowed by semicolon (':')\nand then a <a href=\"https://en.xen.wiki/w/MOS_scale\">Large/small step notation sequence</a>\n(e.g. LLsLLLs)\nfollowed by semicolon, then the large step size (e.g. 2)\nfollowed by semicolon, then the small step size (e.g. 1).</p>\n<p>The number of divisions of the octave is calculated as the sum\nof the steps in the EDO scale definition.</p>\n<p>e.g. C:LLsLLLs:2:1 is 2+2+1+2+2+2+1 = 12 EDO, 7 note scale</p>\n<p>e.g. C:LLsLLL:3:1 is 3+3+1+3+3+3 = 16 EDO, 6 note scale</p>\n<p>The root note defaults to octave 3, if no octave number is given.</p>",
+    signatures: [
+      {
+        label: "edoScale(scale)",
+        parameters: [
+          {
+            label: "string scale",
+            documentation: "<p>Definition of EDO scale.</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "MidiInput",
+    detail: "MidiInput",
+    signatures: [
+      {
+        label: "MidiInput(input)",
+        parameters: [
+          {
+            label: "string input",
+            documentation: "<p>MIDI device name or index defaulting to 0</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "createCC",
+    detail: "MidiInput#createCC",
+    documentation:
+      "<p>Implementation for the cc() factory function tied to this specific input.</p>",
+    signatures: [
+      {
+        label: "createCC(cc, chan)",
+        parameters: [
+          {
+            label: "number cc",
+            documentation: "<p>MIDI CC number</p>",
+          },
+          {
+            label: "number chan",
+            documentation:
+              "<p>MIDI channel (1-16) or undefined for all channels</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "defaultmidimap",
+    detail: "defaultmidimap/external_io,midi",
+    documentation:
+      "<p>configures the default midimap, which is used when no &quot;midimap&quot; port is set</p>",
+    signatures: [
+      {
+        label: "defaultmidimap()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "midimaps",
+    detail: "midimaps/external_io,midi",
+    documentation:
+      "<p>Adds midimaps to the registry. Inside each midimap, control names (e.g. lpf) are mapped to cc numbers.</p>",
+    signatures: [
+      {
+        label: "midimaps()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "midi",
+    detail: "Pattern#midi/external_io",
+    documentation: "<p>MIDI output: Opens a MIDI output port.</p>",
+    signatures: [
+      {
+        label: "midi(midiport, options)",
+        parameters: [
+          {
+            label: "string midiport",
+            documentation: "<p>MIDI device name or index defaulting to 0</p>",
+          },
+          {
+            label: "object options",
+            documentation: "<p>Additional MIDI configuration options</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "_initializeInput",
+    detail: "_initializeInput",
+    documentation: "<p>Initialize a midi input device</p>",
+    signatures: [
+      {
+        label: "_initializeInput()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "midin",
+    detail: "midin/external_io,midi",
+    documentation:
+      "<p>MIDI input: Opens a MIDI input port to receive MIDI control change messages.</p>\n<p>The output is a function that accepts a midi cc value to query as well as (optionally) a midi channel</p>",
+    signatures: [
+      {
+        label: "midin(input)",
+        parameters: [
+          {
+            label: "string input",
+            documentation: "<p>MIDI device name or index defaulting to 0</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "midikeys",
+    detail: "midikeys/external_io,midi",
+    documentation:
+      "<p>MIDI keyboard: Opens a MIDI input port to receive MIDI keyboard messages.</p>\n<p>The note length is fixed as Superdough is not currently set up for undetermined\nnote durations</p>\n<p>The 'midichan' control value contains the number of the channel the note is coming from\nso it could be filtered or manipulated further in the chain.</p>",
+    signatures: [
+      {
+        label: "midikeys(input)",
+        parameters: [
+          {
+            label: "string input",
+            documentation: "<p>MIDI device name or index defaulting to 0</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "getMidiDeviceNamesString",
+    detail: "getMidiDeviceNamesString",
+    documentation:
+      "<p>Get a string listing device names for error messages.</p>",
+    signatures: [
+      {
+        label: "getMidiDeviceNamesString(devices)",
+        parameters: [
+          {
+            label: "Array.<Input> devices",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "getDevice",
+    detail: "getDevice",
+    documentation:
+      "<p>Look up a device by index or name. Otherwise return a default device, or fail if none are connected.</p>",
+    signatures: [
+      {
+        label: "getDevice(indexOrName, devices)",
+        parameters: [
+          {
+            label: "string indexOrName",
+          },
+          {
+            label: "Array.<Input> devices",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "accelerationX",
+    detail: "accelerationX/external_io",
+    documentation:
+      "<p>The accelerometer's x-axis value ranges from 0 to 1.</p>",
+    signatures: [
+      {
+        label: "accelerationX()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "accelerationY",
+    detail: "accelerationY/external_io",
+    documentation:
+      "<p>The accelerometer's y-axis value ranges from 0 to 1.</p>",
+    signatures: [
+      {
+        label: "accelerationY()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "accelerationZ",
+    detail: "accelerationZ/external_io",
+    documentation:
+      "<p>The accelerometer's z-axis value ranges from 0 to 1.</p>",
+    signatures: [
+      {
+        label: "accelerationZ()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "gravityX",
+    detail: "gravityX/external_io",
+    documentation:
+      "<p>The device's gravity x-axis value ranges from 0 to 1.</p>",
+    signatures: [
+      {
+        label: "gravityX()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "gravityY",
+    detail: "gravityY/external_io",
+    documentation:
+      "<p>The device's gravity y-axis value ranges from 0 to 1.</p>",
+    signatures: [
+      {
+        label: "gravityY()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "gravityZ",
+    detail: "gravityZ/external_io",
+    documentation:
+      "<p>The device's gravity z-axis value ranges from 0 to 1.</p>",
+    signatures: [
+      {
+        label: "gravityZ()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "rotationAlpha",
+    detail: "rotationAlpha/external_io",
+    documentation:
+      "<p>The device's rotation around the alpha-axis value ranges from 0 to 1.</p>",
+    signatures: [
+      {
+        label: "rotationAlpha()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "rotationBeta",
+    detail: "rotationBeta/external_io",
+    documentation:
+      "<p>The device's rotation around the beta-axis value ranges from 0 to 1.</p>",
+    signatures: [
+      {
+        label: "rotationBeta()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "rotationGamma",
+    detail: "rotationGamma/external_io",
+    documentation:
+      "<p>The device's rotation around the gamma-axis value ranges from 0 to 1.</p>",
+    signatures: [
+      {
+        label: "rotationGamma()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "orientationAlpha",
+    detail: "orientationAlpha/external_io",
+    documentation:
+      "<p>The device's orientation alpha value ranges from 0 to 1.</p>",
+    signatures: [
+      {
+        label: "orientationAlpha()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "orientationBeta",
+    detail: "orientationBeta/external_io",
+    documentation:
+      "<p>The device's orientation beta value ranges from 0 to 1.</p>",
+    signatures: [
+      {
+        label: "orientationBeta()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "orientationGamma",
+    detail: "orientationGamma/external_io",
+    documentation:
+      "<p>The device's orientation gamma value ranges from 0 to 1.</p>",
+    signatures: [
+      {
+        label: "orientationGamma()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "absoluteOrientationAlpha",
+    detail: "absoluteOrientationAlpha/external_io",
+    documentation:
+      "<p>The device's absolute orientation alpha value ranges from 0 to 1.</p>",
+    signatures: [
+      {
+        label: "absoluteOrientationAlpha()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "absoluteOrientationBeta",
+    detail: "absoluteOrientationBeta/external_io",
+    documentation:
+      "<p>The device's absolute orientation beta value ranges from 0 to 1.</p>",
+    signatures: [
+      {
+        label: "absoluteOrientationBeta()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "absoluteOrientationGamma",
+    detail: "absoluteOrientationGamma/external_io",
+    documentation:
+      "<p>The device's absolute orientation gamma value ranges from 0 to 1.</p>",
+    signatures: [
+      {
+        label: "absoluteOrientationGamma()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "osc",
+    detail: "Pattern.osc/external_io",
+    documentation:
+      '<p>Sends each hap as an OSC message, which can be picked up by SuperCollider or any other OSC-enabled software.\nFor more info, read <a href="https://strudel.cc/learn/input-output/">MIDI &amp; OSC in the docs</a></p>',
+    signatures: [
+      {
+        label: "osc()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "OLAProcessor",
+    detail: "OLAProcessor",
+    signatures: [
+      {
+        label: "OLAProcessor()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "reallocateChannelsIfNeeded",
+    detail: "OLAProcessor#reallocateChannelsIfNeeded/internals",
+    documentation:
+      "<p>Handles dynamic reallocation of input/output channels buffer\n(channel numbers may vary during lifecycle)</p>",
+    signatures: [
+      {
+        label: "reallocateChannelsIfNeeded()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "readInputs",
+    detail: "OLAProcessor#readInputs/internals",
+    documentation: "<p>Read next web audio block to input buffers</p>",
+    signatures: [
+      {
+        label: "readInputs()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "writeOutputs",
+    detail: "OLAProcessor#writeOutputs/internals",
+    documentation: "<p>Write next web audio block from output buffers</p>",
+    signatures: [
+      {
+        label: "writeOutputs()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "shiftInputBuffers",
+    detail: "OLAProcessor#shiftInputBuffers/internals",
+    documentation:
+      "<p>Shift left content of input buffers to receive new web audio block</p>",
+    signatures: [
+      {
+        label: "shiftInputBuffers()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "shiftOutputBuffers",
+    detail: "OLAProcessor#shiftOutputBuffers/internals",
+    documentation:
+      "<p>Shift left content of output buffers to receive new web audio block</p>",
+    signatures: [
+      {
+        label: "shiftOutputBuffers()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "prepareInputBuffersToSend",
+    detail: "OLAProcessor#prepareInputBuffersToSend/internals",
+    documentation:
+      "<p>Copy contents of input buffers to buffer actually sent to process</p>",
+    signatures: [
+      {
+        label: "prepareInputBuffersToSend()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "handleOutputBuffersToRetrieve",
+    detail: "OLAProcessor#handleOutputBuffersToRetrieve/internals",
+    documentation:
+      "<p>Add contents of output buffers just processed to output buffers</p>",
+    signatures: [
+      {
+        label: "handleOutputBuffersToRetrieve()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "generateReverb",
+    detail: "reverbGen.generateReverb/internals",
+    documentation: "<p>Generates a reverb impulse response.</p>",
+    signatures: [
+      {
+        label: "generateReverb(params, callback)",
+        parameters: [
+          {
+            label: "Object params",
+            documentation: "<p>TODO: Document the properties.</p>",
+          },
+          {
+            label: "function callback",
+            documentation:
+              "<p>Function to call when\nthe impulse response has been generated. The impulse response\nis passed to this function as its parameter. May be called\nimmediately within the current execution context, or later.</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "generateGraph",
+    detail: "reverbGen.generateGraph/internals",
+    documentation:
+      "<p>Creates a canvas element showing a graph of the given data.</p>",
+    signatures: [
+      {
+        label: "generateGraph(data, width, height, min, max)",
+        parameters: [
+          {
+            label: "Float32Array data",
+            documentation: "<p>An array of numbers, or a Float32Array.</p>",
+          },
+          {
+            label: "number width",
+            documentation: "<p>Width in pixels of the canvas.</p>",
+          },
+          {
+            label: "number height",
+            documentation: "<p>Height in pixels of the canvas.</p>",
+          },
+          {
+            label: "number min",
+            documentation:
+              "<p>Minimum value of data for the graph (lower edge).</p>",
+          },
+          {
+            label: "number max",
+            documentation:
+              "<p>Maximum value of data in the graph (upper edge).</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "applyGradualLowpass",
+    detail: "applyGradualLowpass/internals",
+    documentation:
+      "<p>Applies a constantly changing lowpass filter to the given sound.</p>",
+    signatures: [
+      {
+        label:
+          "applyGradualLowpass(input, lpFreqStart, lpFreqEnd, lpFreqEndAt, callback)",
+        parameters: [
+          {
+            label: "AudioBuffer input",
+          },
+          {
+            label: "number lpFreqStart",
+          },
+          {
+            label: "number lpFreqEnd",
+          },
+          {
+            label: "number lpFreqEndAt",
+          },
+          {
+            label: "function callback",
+            documentation:
+              "<p>May be called\nimmediately within the current execution context, or later.</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "getAllChannelData",
+    detail: "getAllChannelData",
+    signatures: [
+      {
+        label: "getAllChannelData(buffer)",
+        parameters: [
+          {
+            label: "AudioBuffer buffer",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "randomSample",
+    detail: "randomSample",
+    signatures: [
+      {
+        label: "randomSample()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "getDuration",
+    detail: "getDuration/samples",
+    documentation:
+      "<p>Returns the duration, in seconds, of the given sample.\nHas optional param <code>n</code> (for instance, the <code>2</code> in <code>s(&quot;casio:2&quot;)</code>)</p>\n<p>Note: <code>must</code> be called with await, otherwise you'll get a pending Promise object.</p>",
+    signatures: [
+      {
+        label: "getDuration(sampleName, (optional))",
+        parameters: [
+          {
+            label: "string sampleName",
+          },
+          {
+            label: "number (optional)",
+            documentation: "<p>n</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "samples",
+    detail: "samples/samples",
+    documentation:
+      "<p>Loads a collection of samples to use with <code>s</code></p>",
+    signatures: [
+      {
+        label: "samples()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "setMaxPolyphony",
+    detail: "setMaxPolyphony/superdough",
+    documentation:
+      "<p>Set the max polyphony. If notes are ringing out via <code>release</code> then they will\nstart to die out in first-in-first-out order once the max polyphony has been hit</p>",
+    signatures: [
+      {
+        label: "setMaxPolyphony(Max)",
+        parameters: [
+          {
+            label: "number Max",
+            documentation: "<p>polyphony. Defaults to 128</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "setGainCurve",
+    detail: "setGainCurve/amplitude,superdough",
+    documentation:
+      "<p>Apply a function to all gains provided in patterns. Can be used to rescale gain to be\nquadratic, exponential, etc. rather than linear</p>",
+    signatures: [
+      {
+        label: "setGainCurve(function)",
+        parameters: [
+          {
+            label: "function function",
+            documentation: "<p>to apply to all gain values</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "aliasBank",
+    detail: "aliasBank/samples",
+    documentation:
+      "<p>Register an alias for a bank of sounds.\nOptionally accepts a single argument map of bank aliases.\nOptionally accepts a single argument string of a path to a JSON file containing bank aliases.</p>",
+    signatures: [
+      {
+        label: "aliasBank(bank, alias)",
+        parameters: [
+          {
+            label: "string bank",
+            documentation: "<p>The bank to alias</p>",
+          },
+          {
+            label: "string alias",
+            documentation: "<p>The alias to use for the bank</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "soundAlias",
+    detail: "soundAlias/samples",
+    documentation: "<p>Register an alias for a sound.</p>",
+    signatures: [
+      {
+        label: "soundAlias(original, alias)",
+        parameters: [
+          {
+            label: "string original",
+            documentation: "<p>The original sound name</p>",
+          },
+          {
+            label: "string alias",
+            documentation: "<p>The alias to use for the sound</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "pickAndRename",
+    detail: "pickAndRename/internals",
+    documentation:
+      "<p>Selects entries from <code>source</code> and renames them via <code>map</code></p>",
+    signatures: [
+      {
+        label: "pickAndRename()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "tables",
+    detail: "tables/wavetable",
+    documentation:
+      "<p>Loads a collection of wavetables to use with <code>s</code></p>",
+    signatures: [
+      {
+        label: "tables()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "applyHannWindow",
+    detail: "PhaseVocoderProcessor#applyHannWindow/internals",
+    documentation: "<p>Apply Hann window in-place</p>",
+    signatures: [
+      {
+        label: "applyHannWindow()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "computeMagnitudes",
+    detail: "PhaseVocoderProcessor#computeMagnitudes/internals",
+    documentation: "<p>Compute squared magnitudes for peak finding</p>",
+    signatures: [
+      {
+        label: "computeMagnitudes()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "findPeaks",
+    detail: "PhaseVocoderProcessor#findPeaks/internals",
+    documentation: "<p>Find peaks in spectrum magnitudes</p>",
+    signatures: [
+      {
+        label: "findPeaks()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "shiftPeaks",
+    detail: "PhaseVocoderProcessor#shiftPeaks/internals",
+    documentation:
+      "<p>Shift peaks and regions of influence by pitchFactor into new specturm</p>",
+    signatures: [
+      {
+        label: "shiftPeaks()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "chyx",
+    detail: "chyx/internals",
+    documentation: "<p>BYTE BEATS</p>",
+    signatures: [
+      {
+        label: "chyx()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "transpose",
+    detail: "Pattern.transpose/tonal",
+    documentation:
+      "<p>Change the pitch of each value by the given amount. Expects numbers or note strings as values.\nThe amount can be given as a number of semitones or as a string in interval short notation.\nIf you don't care about enharmonic correctness, just use numbers. Otherwise, pass the interval of\nthe form: ST where S is the degree number and T the type of interval with</p>\n<ul>\n<li>M = major</li>\n<li>m = minor</li>\n<li>P = perfect</li>\n<li>A = augmented</li>\n<li>d = diminished</li>\n</ul>\n<p>Examples intervals:</p>\n<ul>\n<li>1P = unison</li>\n<li>3M = major third</li>\n<li>3m = minor third</li>\n<li>4P = perfect fourth</li>\n<li>4A = augmented fourth</li>\n<li>5P = perfect fifth</li>\n<li>5d = diminished fifth</li>\n</ul>",
+    signatures: [
+      {
+        label: "transpose(amount)",
+        parameters: [
+          {
+            label: "string amount",
+            documentation:
+              "<p>Either number of semitones or interval string.</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "scaleTranspose",
+    detail: "Pattern.scaleTranspose/tonal",
+    documentation:
+      "<p>Transposes notes inside the scale by the number of steps.\nExpected to be called on a Pattern which already has a {@link Pattern#scale}</p>",
+    signatures: [
+      {
+        label: "scaleTranspose(offset)",
+        parameters: [
+          {
+            label: "offset offset",
+            documentation: "<p>number of steps inside the scale</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "scale",
+    detail: "scale/tonal",
+    documentation:
+      "<p>Turns numbers into notes in the scale (zero indexed) or quantizes notes to a scale.</p>\n<p>When describing notes via numbers, note that negative numbers can be used to wrap backwards\nin the scale as well as sharps or flats to produce notes outside of the scale.</p>\n<p>Also sets scale for other scale operations, like {@link Pattern#scaleTranspose}.</p>\n<p>A scale consists of a root note (e.g. <code>c4</code>, <code>c</code>, <code>f#</code>, <code>bb4</code>) followed by semicolon (':') and then a <a href=\"https://github.com/tonaljs/tonal/blob/main/packages/scale-type/data.ts\">scale type</a>.</p>\n<p>The scale name must be written without spaces (because it would be interpreted as a multi-step pattern otherwise).\nIf your scale name includes spaces, replace them with colons.</p>\n<p>The root note defaults to octave 3, if no octave number is given.</p>",
+    signatures: [
+      {
+        label: "scale(scale)",
+        parameters: [
+          {
+            label: "string scale",
+            documentation: "<p>Name of scale</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "addVoicings",
+    detail: "Pattern.addVoicings/tonal",
+    documentation: "<p>Adds a new custom voicing dictionary.</p>",
+    signatures: [
+      {
+        label: "addVoicings(name, dictionary, range)",
+        parameters: [
+          {
+            label: "string name",
+            documentation: "<p>identifier for the voicing dictionary</p>",
+          },
+          {
+            label: "Object dictionary",
+            documentation: "<p>maps chord symbol to possible voicings</p>",
+          },
+          {
+            label: "Array range",
+            documentation: "<p>min, max note</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "voicings",
+    detail: "Pattern.voicings/tonal",
+    documentation:
+      '<p>DEPRECATED: still works, but it is recommended you use .voicing instead (without s).\nTurns chord symbols into voicings, using the smoothest voice leading possible.\nUses <a href="https://github.com/felixroos/chord-voicings#chord-voicings">chord-voicings package</a>.</p>',
+    signatures: [
+      {
+        label: "voicings(dictionary)",
+        parameters: [
+          {
+            label: "string dictionary",
+            documentation: "<p>which voicing dictionary to use.</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "rootNotes",
+    detail: "Pattern.rootNotes/tonal",
+    documentation:
+      "<p>Maps the chords of the incoming pattern to root notes in the given octave.</p>",
+    signatures: [
+      {
+        label: "rootNotes(octave)",
+        parameters: [
+          {
+            label: "octave octave",
+            documentation: "<p>octave to use</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "voicing",
+    detail: "voicing/tonal",
+    documentation:
+      "<p>Turns chord symbols into voicings. You can use the following control params:</p>\n<ul>\n<li><code>chord</code>: Note, followed by chord symbol, e.g. C Am G7 Bb^7</li>\n<li><code>dict</code>: voicing dictionary to use, falls back to default dictionary</li>\n<li><code>anchor</code>: the note that is used to align the chord</li>\n<li><code>mode</code>: how the voicing is aligned to the anchor\n<ul>\n<li><code>below</code>: top note &lt;= anchor</li>\n<li><code>duck</code>: top note &lt;= anchor, anchor excluded</li>\n<li><code>above</code>: bottom note &gt;= anchor</li>\n<li><code>root</code>: bottom note is the lowest root of the chord &gt;= anchor</li>\n<li><code>oldabove</code> : old (buggy) behavior of above, kept for legacy reason</li>\n<li><code>oldroot</code> : old (buggy) behavior of root, kept for legacy reason</li>\n</ul>\n</li>\n<li><code>offset</code>: whole number that shifts the voicing up or down to the next voicing</li>\n<li><code>n</code>: if set, the voicing is played like a scale. Overshooting numbers will be octaved</li>\n</ul>\n<p>All of the above controls are optional, except <code>chord</code>.\nIf you pass a pattern of strings to voicing, they will be interpreted as chords.</p>",
+    signatures: [
+      {
+        label: "voicing()",
+        parameters: [],
+      },
+    ],
+  },
+  {
+    name: "fscope",
+    detail: "fscope/visualization",
+    documentation:
+      "<p>Renders an oscilloscope for the frequency domain of the audio signal.</p>",
+    signatures: [
+      {
+        label: "fscope(color, scale, pos, lean, min, max)",
+        parameters: [
+          {
+            label: "string color",
+            documentation:
+              "<p>line color as hex or color name. defaults to white.</p>",
+          },
+          {
+            label: "number scale",
+            documentation: "<p>scales the y-axis. Defaults to 0.25</p>",
+          },
+          {
+            label: "number pos",
+            documentation:
+              "<p>y-position relative to screen height. 0 = top, 1 = bottom of screen</p>",
+          },
+          {
+            label: "number lean",
+            documentation:
+              "<p>y-axis alignment where 0 = top and 1 = bottom</p>",
+          },
+          {
+            label: "number min",
+            documentation: "<p>min value</p>",
+          },
+          {
+            label: "number max",
+            documentation: "<p>max value</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "scope",
+    detail: "scope/visualization",
+    documentation:
+      "<p>Renders an oscilloscope for the time domain of the audio signal.</p>",
+    signatures: [
+      {
+        label: "scope(config, align, color, thickness, scale, pos, trigger)",
+        parameters: [
+          {
+            label: "object config",
+            documentation: "<p>optional config with options:</p>",
+          },
+          {
+            label: "boolean align",
+            documentation:
+              "<p>if 1, the scope will be aligned to the first zero crossing. defaults to 1</p>",
+          },
+          {
+            label: "string color",
+            documentation:
+              "<p>line color as hex or color name. defaults to white.</p>",
+          },
+          {
+            label: "number thickness",
+            documentation: "<p>line thickness. defaults to 3</p>",
+          },
+          {
+            label: "number scale",
+            documentation: "<p>scales the y-axis. Defaults to 0.25</p>",
+          },
+          {
+            label: "number pos",
+            documentation:
+              "<p>y-position relative to screen height. 0 = top, 1 = bottom of screen</p>",
+          },
+          {
+            label: "number trigger",
+            documentation:
+              "<p>amplitude value that is used to align the scope. defaults to 0.</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "spectrum",
+    detail: "spectrum/visualization",
+    documentation:
+      "<p>Renders a spectrum analyzer for the incoming audio signal.</p>",
+    signatures: [
+      {
+        label: "spectrum(config, thickness, speed, min, max)",
+        parameters: [
+          {
+            label: "object config",
+            documentation: "<p>optional config with options:</p>",
+          },
+          {
+            label: "integer thickness",
+            documentation: "<p>line thickness in px (default 3)</p>",
+          },
+          {
+            label: "integer speed",
+            documentation: "<p>scroll speed (default 1)</p>",
+          },
+          {
+            label: "integer min",
+            documentation: "<p>min db (default -80)</p>",
+          },
+          {
+            label: "integer max",
+            documentation: "<p>max db (default 0)</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "tune",
+    detail: "Pattern.tune/tonal",
+    documentation:
+      "<p>Deprecated.</p>\n<p>Assumes pattern contains numerical scale degrees on the <code>i</code> control (see examples below). Accepts a scale name or list of frequencies (see all available names at the link on the reference). Returns a new pattern with all values mapped to a frequency ratio. Similar to <code>xen</code>.</p>",
+    signatures: [
+      {
+        label: "tune(scale)",
+        parameters: [
+          {
+            label: "string scale",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "xen",
+    detail: "Pattern.xen/tonal",
+    documentation:
+      "<p>Assumes a numerical pattern of scale steps, and a scale. Scales accepted are all preset scale names of <code>tune</code>, arbitrary edos such as 31edo, or an array of frequency ratios. Assumes scales repeat at octave (2/1). Returns a new pattern with all values mapped to their associated frequency, assuming a base frequency of 220hz. See first 4 examples for the different ways you can input a scale into <code>xen</code></p>",
+    signatures: [
+      {
+        label: "xen(scaleNameOrRatios)",
+        parameters: [
+          {
+            label: "string scaleNameOrRatios",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "withBase",
+    detail: "withBase/tonal",
+    documentation:
+      "<p>Assumes pattern of frequencies tuned to some <code>base</code> frequency, such as the output of <code>xen</code>\nBecause <code>xen</code> defaults to <code>220Hz</code>, so will <code>withBase</code>.\nbut you can specify a different original base with the standard optional array syntax '<code>:</code>'</p>",
+    signatures: [
+      {
+        label: "withBase(base, (optional))",
+        parameters: [
+          {
+            label: "number base",
+          },
+          {
+            label: "number (optional)",
+            documentation: "<p>originalBase</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "ftranspose",
+    detail: "ftranspose/tonal",
+    documentation:
+      "<p>Frequency transpose. Assumes pattern either has <code>freq</code> set, or has values that can be interpreted as frequencies\namt has optional <code>edoSize</code> param, defaults to 12.\nIf haps have edoSize param set, such as from the output of <code>xen(&quot;31edo&quot;)</code>,\n<code>ftrans</code> will fallback to that instead of 12 as the default.</p>\n<p>Transposes the frequency by <code>amt</code> edoSteps</p>",
+    signatures: [
+      {
+        label: "ftranspose(amt, edoSize)",
+        parameters: [
+          {
+            label: "number amt",
+          },
+          {
+            label: "number edoSize",
+            documentation: "<p>(optional)</p>",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    detail: "package:undefined",
+    signatures: [
+      {
+        label: "undefined()",
+        parameters: [],
+      },
+    ],
+  },
 ];
 
 // Common typos and their corrections
 const TYPO_CORRECTIONS: Record<string, string> = {
   // Sample typos
-  'db': 'bd',
-  'ds': 'sd',
-  'kick': 'bd',
-  'snare': 'sd',
-  'hihat': 'hh',
-  'openhat': 'oh',
-  'clap': 'cp',
-  'cowbell': 'cb',
-  'crash': 'cr',
-  'ride': 'rd',
+  db: "bd",
+  ds: "sd",
+  kick: "bd",
+  snare: "sd",
+  hihat: "hh",
+  openhat: "oh",
+  clap: "cp",
+  cowbell: "cb",
+  crash: "cr",
+  ride: "rd",
   // Note typos
-  'cf': 'c',
-  'ef': 'e',
-  'bf': 'b',
+  cf: "c",
+  ef: "e",
+  bf: "b",
   // Function typos
-  'sounds': 'sound',
-  'notes': 'note',
-  'filters': 'lpf',
-  'lowpass': 'lpf',
-  'highpass': 'hpf',
-  'bandpass': 'bpf',
-  'reverb': 'room',
-  'echo': 'delay',
-  'volume': 'gain',
-  'reverse': 'rev',
+  sounds: "sound",
+  notes: "note",
+  filters: "lpf",
+  lowpass: "lpf",
+  highpass: "hpf",
+  bandpass: "bpf",
+  reverb: "room",
+  echo: "delay",
+  volume: "gain",
+  reverse: "rev",
 };
 
 /**
@@ -7180,14 +9618,14 @@ function getAllSamples(): string[] {
  */
 function levenshtein(a: string, b: string): number {
   const matrix: number[][] = [];
-  
+
   for (let i = 0; i <= b.length; i++) {
     matrix[i] = [i];
   }
   for (let j = 0; j <= a.length; j++) {
     matrix[0][j] = j;
   }
-  
+
   for (let i = 1; i <= b.length; i++) {
     for (let j = 1; j <= a.length; j++) {
       if (b.charAt(i - 1) === a.charAt(j - 1)) {
@@ -7196,26 +9634,30 @@ function levenshtein(a: string, b: string): number {
         matrix[i][j] = Math.min(
           matrix[i - 1][j - 1] + 1,
           matrix[i][j - 1] + 1,
-          matrix[i - 1][j] + 1
+          matrix[i - 1][j] + 1,
         );
       }
     }
   }
-  
+
   return matrix[b.length][a.length];
 }
 
 /**
  * Find similar words for typo suggestions
  */
-function findSimilar(word: string, candidates: string[], maxDistance = 2): string[] {
+function findSimilar(
+  word: string,
+  candidates: string[],
+  maxDistance = 2,
+): string[] {
   const lowerWord = word.toLowerCase();
-  
+
   // Check explicit typo corrections first
   if (TYPO_CORRECTIONS[lowerWord]) {
     return [TYPO_CORRECTIONS[lowerWord]];
   }
-  
+
   // Find candidates within edit distance
   const similar: { word: string; distance: number }[] = [];
   for (const candidate of candidates) {
@@ -7224,12 +9666,12 @@ function findSimilar(word: string, candidates: string[], maxDistance = 2): strin
       similar.push({ word: candidate, distance });
     }
   }
-  
+
   // Sort by distance and return top matches
   return similar
     .sort((a, b) => a.distance - b.distance)
     .slice(0, 3)
-    .map(s => s.word);
+    .map((s) => s.word);
 }
 
 /**
@@ -7262,12 +9704,12 @@ interface MiniParseResult {
  */
 function parseMiniNotation(content: string): MiniParseResult {
   // Wrap content in quotes for the parser (it expects the full quoted string)
-  const quotedContent = `"${content.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
-  
+  const quotedContent = `"${content.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+
   try {
     // Use parse() directly to get the PEG.js error with location if it fails
     parseMini(quotedContent);
-    
+
     // If parse succeeded, get the leaves (atoms) for further analysis
     const leaves = getMiniLeaves(quotedContent);
     return { success: true, leaves };
@@ -7280,7 +9722,7 @@ function parseMiniNotation(content: string): MiniParseResult {
           message: e.message,
           location: e.location,
           expected: e.expected?.map((exp: any) => {
-            if (exp.type === 'literal') return `'${exp.text}'`;
+            if (exp.type === "literal") return `'${exp.text}'`;
             if (exp.description) return exp.description;
             return String(exp);
           }),
@@ -7288,7 +9730,7 @@ function parseMiniNotation(content: string): MiniParseResult {
         },
       };
     }
-    
+
     // Try to extract location from error message: "[mini] parse error at line X column Y:"
     const locMatch = e.message?.match(/line (\d+)(?: column (\d+))?/);
     if (locMatch) {
@@ -7297,7 +9739,10 @@ function parseMiniNotation(content: string): MiniParseResult {
       return {
         success: false,
         error: {
-          message: e.message.replace(/^\[mini\] parse error at line \d+(?: column \d+)?:\s*/, ''),
+          message: e.message.replace(
+            /^\[mini\] parse error at line \d+(?: column \d+)?:\s*/,
+            "",
+          ),
           location: {
             start: { offset: 0, line, column },
             end: { offset: 0, line, column: column + 1 },
@@ -7305,18 +9750,18 @@ function parseMiniNotation(content: string): MiniParseResult {
         },
       };
     }
-    
+
     // Generic error
     return {
       success: false,
-      error: { message: e.message || 'Unknown parse error' },
+      error: { message: e.message || "Unknown parse error" },
     };
   }
 }
 
 // Store diagnostics with their data for code actions
 interface DiagnosticData {
-  type: 'unknown_sample' | 'unbalanced_bracket' | 'unknown_function';
+  type: "unknown_sample" | "unbalanced_bracket" | "unknown_function";
   word?: string;
   suggestions?: string[];
 }
@@ -7324,19 +9769,19 @@ interface DiagnosticData {
 const diagnosticDataMap = new Map<string, Map<string, DiagnosticData>>();
 
 connection.onInitialize((params: InitializeParams): InitializeResult => {
-  connection.console.log('Strudel LSP initializing...');
-  
+  connection.console.log("Strudel LSP initializing...");
+
   return {
     capabilities: {
       textDocumentSync: TextDocumentSyncKind.Incremental,
       completionProvider: {
-        triggerCharacters: ['"', "'", ' ', ':', '(', '.', ','],
+        triggerCharacters: ['"', "'", " ", ":", "(", ".", ","],
         resolveProvider: true,
       },
       hoverProvider: true,
       signatureHelpProvider: {
-        triggerCharacters: ['(', ','],
-        retriggerCharacters: [','],
+        triggerCharacters: ["(", ","],
+        retriggerCharacters: [","],
       },
       codeActionProvider: {
         codeActionKinds: [CodeActionKind.QuickFix],
@@ -7346,8 +9791,8 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 });
 
 connection.onInitialized(() => {
-  connection.console.log('Strudel LSP initialized');
-  
+  connection.console.log("Strudel LSP initialized");
+
   // Connect to engine and load samples
   connectToEngine();
 });
@@ -7355,8 +9800,8 @@ connection.onInitialized(() => {
 /**
  * TCP client state for engine connection
  */
-let engineSocket: import('net').Socket | null = null;
-let engineBuffer = '';
+let engineSocket: import("net").Socket | null = null;
+let engineBuffer = "";
 let stopWatching: (() => void) | null = null;
 let reconnectTimer: NodeJS.Timeout | null = null;
 
@@ -7365,37 +9810,41 @@ let reconnectTimer: NodeJS.Timeout | null = null;
  * Uses state file to get connection info, watches for engine restarts
  */
 async function connectToEngine() {
-  const net = await import('net');
-  const { readEngineState, watchEngineState, isEngineRunning } = await import('./engine-state.js');
-  
+  const net = await import("net");
+  const { readEngineState, watchEngineState, isEngineRunning } =
+    await import("./engine-state.js");
+
   // Function to attempt connection
   const tryConnect = (state: { port: number; pid: number }) => {
     if (engineSocket) {
       engineSocket.destroy();
       engineSocket = null;
     }
-    
+
     connection.console.log(`Connecting to engine on port ${state.port}...`);
-    
-    const socket = net.createConnection({ port: state.port, host: '127.0.0.1' }, () => {
-      connection.console.log('Connected to engine');
-      engineSocket = socket;
-      
-      // Request samples, banks, and sounds
-      socket.write(JSON.stringify({ type: 'getSamples' }) + '\n');
-      socket.write(JSON.stringify({ type: 'getBanks' }) + '\n');
-      socket.write(JSON.stringify({ type: 'getSounds' }) + '\n');
-    });
-    
-    socket.on('data', (data) => {
+
+    const socket = net.createConnection(
+      { port: state.port, host: "127.0.0.1" },
+      () => {
+        connection.console.log("Connected to engine");
+        engineSocket = socket;
+
+        // Request samples, banks, and sounds
+        socket.write(JSON.stringify({ type: "getSamples" }) + "\n");
+        socket.write(JSON.stringify({ type: "getBanks" }) + "\n");
+        socket.write(JSON.stringify({ type: "getSounds" }) + "\n");
+      },
+    );
+
+    socket.on("data", (data) => {
       engineBuffer += data.toString();
-      
+
       // Process newline-delimited JSON messages
       let newlineIndex;
-      while ((newlineIndex = engineBuffer.indexOf('\n')) !== -1) {
+      while ((newlineIndex = engineBuffer.indexOf("\n")) !== -1) {
         const line = engineBuffer.slice(0, newlineIndex);
         engineBuffer = engineBuffer.slice(newlineIndex + 1);
-        
+
         if (line.trim()) {
           try {
             const msg = JSON.parse(line);
@@ -7406,49 +9855,55 @@ async function connectToEngine() {
         }
       }
     });
-    
-    socket.on('error', (err) => {
+
+    socket.on("error", (err) => {
       connection.console.log(`Engine connection error: ${err.message}`);
       engineSocket = null;
     });
-    
-    socket.on('close', () => {
-      connection.console.log('Engine connection closed');
+
+    socket.on("close", () => {
+      connection.console.log("Engine connection closed");
       engineSocket = null;
-      engineBuffer = '';
+      engineBuffer = "";
     });
   };
-  
+
   // Handle messages from engine
   const handleEngineMessage = (msg: any) => {
     switch (msg.type) {
-      case 'samples':
+      case "samples":
         dynamicSamples = msg.samples || [];
-        connection.console.log(`Received ${dynamicSamples.length} samples from engine`);
+        connection.console.log(
+          `Received ${dynamicSamples.length} samples from engine`,
+        );
         // Re-validate all open documents
-        documents.all().forEach(doc => validateDocument(doc));
+        documents.all().forEach((doc) => validateDocument(doc));
         break;
-      case 'banks':
+      case "banks":
         dynamicBanks = msg.banks || [];
-        connection.console.log(`Received ${dynamicBanks.length} banks from engine`);
+        connection.console.log(
+          `Received ${dynamicBanks.length} banks from engine`,
+        );
         // Re-validate all open documents
-        documents.all().forEach(doc => validateDocument(doc));
+        documents.all().forEach((doc) => validateDocument(doc));
         break;
-      case 'sounds':
+      case "sounds":
         // Could store synth sounds too if needed
-        connection.console.log(`Received ${msg.sounds?.length || 0} sounds from engine`);
+        connection.console.log(
+          `Received ${msg.sounds?.length || 0} sounds from engine`,
+        );
         break;
     }
   };
-  
+
   // Initial connection attempt
   const state = readEngineState();
   if (state && isEngineRunning(state) && state.port > 0) {
     tryConnect(state);
   } else {
-    connection.console.log('Engine not running, waiting for it to start...');
+    connection.console.log("Engine not running, waiting for it to start...");
   }
-  
+
   // Watch for engine starting/restarting
   stopWatching = watchEngineState((newState) => {
     if (newState && isEngineRunning(newState) && newState.port > 0) {
@@ -7457,13 +9912,13 @@ async function connectToEngine() {
         clearTimeout(reconnectTimer);
         reconnectTimer = null;
       }
-      
+
       // Small delay to let engine fully initialize
       reconnectTimer = setTimeout(() => {
         tryConnect(newState);
       }, 500);
     } else if (!newState) {
-      connection.console.log('Engine stopped');
+      connection.console.log("Engine stopped");
       if (engineSocket) {
         engineSocket.destroy();
         engineSocket = null;
@@ -7475,43 +9930,46 @@ async function connectToEngine() {
 /**
  * Find if position is inside a mini-notation string (inside quotes)
  */
-function findMiniNotationContext(document: TextDocument, position: Position): { inMini: boolean; content: string; startOffset: number } | null {
+function findMiniNotationContext(
+  document: TextDocument,
+  position: Position,
+): { inMini: boolean; content: string; startOffset: number } | null {
   const text = document.getText();
   const offset = document.offsetAt(position);
-  
+
   // Look backwards for opening quote
   let quoteStart = -1;
-  let quoteChar = '';
+  let quoteChar = "";
   for (let i = offset - 1; i >= 0; i--) {
     const char = text[i];
     if (char === '"' || char === "'") {
       // Check if escaped
-      if (i > 0 && text[i - 1] === '\\') continue;
+      if (i > 0 && text[i - 1] === "\\") continue;
       quoteStart = i;
       quoteChar = char;
       break;
     }
     // Stop at newline or semicolon (likely not in same string)
-    if (char === '\n' || char === ';') break;
+    if (char === "\n" || char === ";") break;
   }
-  
+
   if (quoteStart === -1) return null;
-  
+
   // Look forward for closing quote
   let quoteEnd = -1;
   for (let i = offset; i < text.length; i++) {
     const char = text[i];
     if (char === quoteChar) {
       // Check if escaped
-      if (i > 0 && text[i - 1] === '\\') continue;
+      if (i > 0 && text[i - 1] === "\\") continue;
       quoteEnd = i;
       break;
     }
-    if (char === '\n') break;
+    if (char === "\n") break;
   }
-  
+
   if (quoteEnd === -1) return null;
-  
+
   const content = text.slice(quoteStart + 1, quoteEnd);
   return { inMini: true, content, startOffset: quoteStart + 1 };
 }
@@ -7522,34 +9980,37 @@ function findMiniNotationContext(document: TextDocument, position: Position): { 
 function getCurrentWord(text: string, offset: number): string {
   let start = offset;
   let end = offset;
-  
+
   // Go backwards to find word start
   while (start > 0 && /[a-zA-Z0-9_]/.test(text[start - 1])) {
     start--;
   }
-  
+
   // Go forward to find word end
   while (end < text.length && /[a-zA-Z0-9_]/.test(text[end])) {
     end++;
   }
-  
+
   return text.slice(start, end);
 }
 
 /**
  * Find function call context at position
  */
-function findFunctionContext(text: string, offset: number): { name: string; paramIndex: number } | null {
+function findFunctionContext(
+  text: string,
+  offset: number,
+): { name: string; paramIndex: number } | null {
   let depth = 0;
   let paramIndex = 0;
-  
+
   // Go backwards to find function name
   for (let i = offset - 1; i >= 0; i--) {
     const char = text[i];
-    
-    if (char === ')') {
+
+    if (char === ")") {
       depth++;
-    } else if (char === '(') {
+    } else if (char === "(") {
       if (depth === 0) {
         // Found opening paren, now find function name
         let nameEnd = i;
@@ -7558,7 +10019,7 @@ function findFunctionContext(text: string, offset: number): { name: string; para
           nameStart--;
         }
         nameStart++;
-        
+
         if (nameStart < nameEnd) {
           const name = text.slice(nameStart, nameEnd);
           return { name, paramIndex };
@@ -7566,71 +10027,71 @@ function findFunctionContext(text: string, offset: number): { name: string; para
         return null;
       }
       depth--;
-    } else if (char === ',' && depth === 0) {
+    } else if (char === "," && depth === 0) {
       paramIndex++;
-    } else if (char === '\n' || char === ';') {
+    } else if (char === "\n" || char === ";") {
       break;
     }
   }
-  
+
   return null;
 }
 
 connection.onCompletion((params): CompletionItem[] => {
   const document = documents.get(params.textDocument.uri);
   if (!document) return [];
-  
+
   const text = document.getText();
   const offset = document.offsetAt(params.position);
-  
+
   // Check if we're inside a mini-notation string
   const miniContext = findMiniNotationContext(document, params.position);
-  
+
   const items: CompletionItem[] = [];
-  
+
   if (miniContext?.inMini) {
     // Inside mini-notation - suggest samples and notes
     const localOffset = offset - miniContext.startOffset;
     const beforeCursor = miniContext.content.slice(0, localOffset);
-    
+
     // Check if after a colon (sample index)
-    if (beforeCursor.endsWith(':')) {
+    if (beforeCursor.endsWith(":")) {
       // Suggest sample indices
       for (let i = 0; i < 16; i++) {
         items.push({
           label: String(i),
           kind: CompletionItemKind.Value,
           detail: `Sample variant ${i}`,
-          sortText: String(i).padStart(2, '0'),
+          sortText: String(i).padStart(2, "0"),
         });
       }
       return items;
     }
-    
+
     // Suggest samples
     const samples = getAllSamples();
     for (const sample of samples) {
       items.push({
         label: sample,
         kind: CompletionItemKind.Value,
-        detail: 'Sample',
+        detail: "Sample",
         documentation: `Play ${sample} sound`,
       });
     }
-    
+
     // Suggest notes with octaves
     for (const note of NOTE_NAMES) {
       for (const octave of OCTAVES) {
         items.push({
           label: `${note}${octave}`,
           kind: CompletionItemKind.Value,
-          detail: 'Note',
+          detail: "Note",
           documentation: `Note ${note.toUpperCase()}${octave}`,
           sortText: `1${note}${octave}`, // Sort notes after samples
         });
       }
     }
-    
+
     // Suggest mini-notation operators
     for (const op of MINI_OPERATORS) {
       items.push({
@@ -7643,11 +10104,11 @@ connection.onCompletion((params): CompletionItem[] => {
     }
   } else {
     // Outside mini-notation - suggest Strudel functions
-    
+
     // Check if we're after a dot (method call)
     const beforeCursor = text.slice(Math.max(0, offset - 50), offset);
     const afterDot = beforeCursor.match(/\.\s*([a-zA-Z]*)$/);
-    
+
     for (const func of STRUDEL_FUNCTIONS) {
       items.push({
         label: func.name,
@@ -7661,31 +10122,34 @@ connection.onCompletion((params): CompletionItem[] => {
         insertTextFormat: 2, // Snippet
       });
     }
-    
+
     // Suggest scales
     for (const scale of SCALE_NAMES) {
       items.push({
         label: scale,
         kind: CompletionItemKind.Enum,
-        detail: 'Scale',
+        detail: "Scale",
         documentation: `${scale} scale`,
       });
     }
-    
+
     // Suggest banks if typing .bank(
-    if (beforeCursor.includes('.bank(')) {
-      const banks = dynamicBanks.length > 0 ? dynamicBanks : ['RolandTR808', 'RolandTR909', 'RolandTR707'];
+    if (beforeCursor.includes(".bank(")) {
+      const banks =
+        dynamicBanks.length > 0
+          ? dynamicBanks
+          : ["RolandTR808", "RolandTR909", "RolandTR707"];
       for (const bank of banks) {
         items.push({
           label: bank,
           kind: CompletionItemKind.Module,
-          detail: 'Sample bank',
+          detail: "Sample bank",
           documentation: `Use ${bank} drum machine samples`,
         });
       }
     }
   }
-  
+
   return items;
 });
 
@@ -7697,35 +10161,35 @@ connection.onCompletionResolve((item): CompletionItem => {
 connection.onSignatureHelp((params): SignatureHelp | null => {
   const document = documents.get(params.textDocument.uri);
   if (!document) return null;
-  
+
   const text = document.getText();
   const offset = document.offsetAt(params.position);
-  
+
   // Find function context
   const funcContext = findFunctionContext(text, offset);
   if (!funcContext) return null;
-  
+
   // Find matching function
-  const func = STRUDEL_FUNCTIONS.find(f => f.name === funcContext.name);
+  const func = STRUDEL_FUNCTIONS.find((f) => f.name === funcContext.name);
   if (!func) return null;
-  
+
   // Build signature help
-  const signatures: SignatureInformation[] = func.signatures.map(sig => {
-    const params: ParameterInformation[] = sig.parameters.map(p => ({
+  const signatures: SignatureInformation[] = func.signatures.map((sig) => {
+    const params: ParameterInformation[] = sig.parameters.map((p) => ({
       label: p.label,
       documentation: {
         kind: MarkupKind.Markdown,
         value: p.documentation,
       },
     }));
-    
+
     return {
       label: sig.label,
       documentation: sig.documentation || func.documentation,
       parameters: params,
     };
   });
-  
+
   // Select best signature based on parameter count
   let activeSignature = 0;
   for (let i = 0; i < func.signatures.length; i++) {
@@ -7734,26 +10198,29 @@ connection.onSignatureHelp((params): SignatureHelp | null => {
       break;
     }
   }
-  
+
   return {
     signatures,
     activeSignature,
-    activeParameter: Math.min(funcContext.paramIndex, func.signatures[activeSignature]?.parameters.length - 1 || 0),
+    activeParameter: Math.min(
+      funcContext.paramIndex,
+      func.signatures[activeSignature]?.parameters.length - 1 || 0,
+    ),
   };
 });
 
 connection.onHover((params): Hover | null => {
   const document = documents.get(params.textDocument.uri);
   if (!document) return null;
-  
+
   const text = document.getText();
   const offset = document.offsetAt(params.position);
   const word = getCurrentWord(text, offset);
-  
+
   if (!word) return null;
-  
+
   const samples = getAllSamples();
-  
+
   // Check samples
   if (samples.includes(word)) {
     return {
@@ -7763,22 +10230,22 @@ connection.onHover((params): Hover | null => {
       },
     };
   }
-  
+
   // Check notes (strip octave)
-  const noteBase = word.replace(/[0-9]/g, '');
+  const noteBase = word.replace(/[0-9]/g, "");
   if (NOTE_NAMES.includes(noteBase)) {
     return {
       contents: {
         kind: MarkupKind.Markdown,
-        value: `**${word}** - Note\n\nMusical note ${noteBase.toUpperCase()}${word.replace(/[^0-9]/g, '')}.\n\n\`\`\`javascript\nnote("${word}")\n\`\`\``,
+        value: `**${word}** - Note\n\nMusical note ${noteBase.toUpperCase()}${word.replace(/[^0-9]/g, "")}.\n\n\`\`\`javascript\nnote("${word}")\n\`\`\``,
       },
     };
   }
-  
+
   // Check functions
-  const func = STRUDEL_FUNCTIONS.find(f => f.name === word);
+  const func = STRUDEL_FUNCTIONS.find((f) => f.name === word);
   if (func) {
-    const sigExamples = func.signatures.map(s => s.label).join('\n');
+    const sigExamples = func.signatures.map((s) => s.label).join("\n");
     return {
       contents: {
         kind: MarkupKind.Markdown,
@@ -7786,7 +10253,7 @@ connection.onHover((params): Hover | null => {
       },
     };
   }
-  
+
   // Check scales
   if (SCALE_NAMES.includes(word)) {
     return {
@@ -7796,9 +10263,11 @@ connection.onHover((params): Hover | null => {
       },
     };
   }
-  
+
   // Check mini operators
-  const op = MINI_OPERATORS.find(o => o.label === word || o.label.includes(word));
+  const op = MINI_OPERATORS.find(
+    (o) => o.label === word || o.label.includes(word),
+  );
   if (op) {
     return {
       contents: {
@@ -7807,7 +10276,7 @@ connection.onHover((params): Hover | null => {
       },
     };
   }
-  
+
   // Check banks
   if (dynamicBanks.includes(word)) {
     return {
@@ -7817,7 +10286,7 @@ connection.onHover((params): Hover | null => {
       },
     };
   }
-  
+
   return null;
 });
 
@@ -7828,10 +10297,10 @@ async function validateDocument(document: TextDocument): Promise<void> {
   const text = document.getText();
   const diagnostics: Diagnostic[] = [];
   const docData = new Map<string, DiagnosticData>();
-  
+
   const samples = getAllSamples();
-  const functionNames = STRUDEL_FUNCTIONS.map(f => f.name);
-  
+  const functionNames = STRUDEL_FUNCTIONS.map((f) => f.name);
+
   // Find user-defined functions created with register()
   // Pattern: register('name', ...) or register("name", ...)
   const userDefinedFunctions: string[] = [];
@@ -7840,230 +10309,301 @@ async function validateDocument(document: TextDocument): Promise<void> {
   while ((registerMatch = registerRegex.exec(text)) !== null) {
     userDefinedFunctions.push(registerMatch[2]);
   }
-  
+
   // Also look for const assignments that look like custom functions
   // Pattern: const funcName = register(...)
   const constRegisterRegex = /\bconst\s+(\w+)\s*=\s*register\s*\(/g;
   while ((registerMatch = constRegisterRegex.exec(text)) !== null) {
     userDefinedFunctions.push(registerMatch[1]);
   }
-  
+
   // Combine built-in functions with user-defined ones for validation
   const allFunctionNames = [...functionNames, ...userDefinedFunctions];
-  
+
   // Find all quoted strings and validate mini-notation
   const stringRegex = /(['"])((?:\\.|(?!\1)[^\\])*)\1/g;
   let match;
-  
+
   // Functions whose string arguments should NOT be validated as mini-notation samples
   // These take bank names, scale names, function names, property names, or other non-sample identifiers
-  const nonSampleArgFunctions = ['bank', 'scale', 'mode', 'voicing', 'chord', 'struct', 'mask', 'register', 'pull'];
-  
+  const nonSampleArgFunctions = [
+    "bank",
+    "scale",
+    "mode",
+    "voicing",
+    "chord",
+    "struct",
+    "mask",
+    "register",
+    "pull",
+  ];
+
   while ((match = stringRegex.exec(text)) !== null) {
     const content = match[2];
     const stringStartOffset = match.index; // Position of opening quote
     const contentStartOffset = match.index + 1; // Skip opening quote
-    
+
     // Skip empty strings
     if (!content.trim()) continue;
-    
+
     // Skip strings that look like paths or URLs
-    if (content.includes('/') && (content.startsWith('http') || content.startsWith('.') || content.startsWith('github:'))) continue;
-    
+    if (
+      content.includes("/") &&
+      (content.startsWith("http") ||
+        content.startsWith(".") ||
+        content.startsWith("github:"))
+    )
+      continue;
+
     // Skip strings that are clearly not mini-notation (contain common code patterns)
-    if (content.includes('function') || content.includes('=>') || content.includes('return')) continue;
-    
+    if (
+      content.includes("function") ||
+      content.includes("=>") ||
+      content.includes("return")
+    )
+      continue;
+
     // Check if this string is an argument to a function that doesn't take sample names
     // Look backwards from the quote to find the function call pattern: .funcName( or funcName(
-    const beforeString = text.slice(Math.max(0, stringStartOffset - 50), stringStartOffset);
+    const beforeString = text.slice(
+      Math.max(0, stringStartOffset - 50),
+      stringStartOffset,
+    );
     const funcCallMatch = beforeString.match(/\.?(\w+)\s*\(\s*$/);
     if (funcCallMatch && nonSampleArgFunctions.includes(funcCallMatch[1])) {
       // This is an argument to bank(), scale(), etc. - skip sample validation
       continue;
     }
-    
+
     // Parse using @strudel/mini for proper AST-based validation
     const parseResult = parseMiniNotation(content);
-    
+
     if (!parseResult.success && parseResult.error) {
       // Report parser error with accurate location
       const error = parseResult.error;
-      
+
       // Calculate position in document
       // Parser location is 1-indexed and includes the quote we added, so subtract 1 from column
       let errorOffset: number;
       if (error.location) {
         // Parser offset includes the quote char we wrapped, so subtract 1
         // But we want to point to the document position, so use contentStartOffset
-        errorOffset = contentStartOffset + Math.max(0, error.location.start.offset - 1);
+        errorOffset =
+          contentStartOffset + Math.max(0, error.location.start.offset - 1);
       } else {
         errorOffset = contentStartOffset;
       }
-      
+
       const pos = document.positionAt(errorOffset);
-      const endOffset = error.location 
+      const endOffset = error.location
         ? contentStartOffset + Math.max(0, error.location.end.offset - 1)
         : errorOffset + 1;
-      const endPos = document.positionAt(Math.min(endOffset, stringStartOffset + match[0].length - 1));
-      
+      const endPos = document.positionAt(
+        Math.min(endOffset, stringStartOffset + match[0].length - 1),
+      );
+
       const range = Range.create(pos, endPos);
       const key = `${range.start.line}:${range.start.character}`;
-      
+
       // Clean up the error message
       let message = error.message;
       if (error.expected && error.found !== undefined) {
-        const expectedStr = error.expected.slice(0, 5).join(', ');
-        const more = error.expected.length > 5 ? `, ... (${error.expected.length - 5} more)` : '';
-        message = `Syntax error: expected ${expectedStr}${more} but found ${error.found === null ? 'end of input' : `'${error.found}'`}`;
+        const expectedStr = error.expected.slice(0, 5).join(", ");
+        const more =
+          error.expected.length > 5
+            ? `, ... (${error.expected.length - 5} more)`
+            : "";
+        message = `Syntax error: expected ${expectedStr}${more} but found ${error.found === null ? "end of input" : `'${error.found}'`}`;
       }
-      
+
       diagnostics.push({
         severity: DiagnosticSeverity.Error,
         range,
         message,
-        source: 'strudel',
-        code: 'parse-error',
+        source: "strudel",
+        code: "parse-error",
       });
-      
-      docData.set(key, { type: 'unbalanced_bracket' });
+
+      docData.set(key, { type: "unbalanced_bracket" });
     }
-    
+
     // If parsing succeeded, validate the leaves (atoms) for unknown samples
     if (parseResult.success && parseResult.leaves) {
       for (const leaf of parseResult.leaves) {
-        if (leaf.type_ !== 'atom') continue;
-        
+        if (leaf.type_ !== "atom") continue;
+
         const word = leaf.source_;
-        
+
         // Skip if it looks like a note (with or without octave)
         if (/^[a-g][sb]?[0-9]?$/i.test(word)) continue;
-        
+
         // Skip numbers and rests
-        if (/^[0-9.-]+$/.test(word) || word === '~') continue;
-        
+        if (/^[0-9.-]+$/.test(word) || word === "~") continue;
+
         // Skip if it's a known sample
-        if (samples.some(s => s.toLowerCase() === word.toLowerCase())) continue;
-        
+        if (samples.some((s) => s.toLowerCase() === word.toLowerCase()))
+          continue;
+
         // Skip if it's a known bank (banks can appear as sample prefixes)
-        if (dynamicBanks.some(b => b.toLowerCase() === word.toLowerCase())) continue;
-        
+        if (dynamicBanks.some((b) => b.toLowerCase() === word.toLowerCase()))
+          continue;
+
         // Skip common mini-notation atoms
-        if (['x', 't', 'f', 'r', '-', '_'].includes(word.toLowerCase())) continue;
-        
+        if (["x", "t", "f", "r", "-", "_"].includes(word.toLowerCase()))
+          continue;
+
         // Skip if it looks like a variable reference
         if (/^[A-Z]/.test(word)) continue;
-        
+
         // Skip voicing modes (used with .mode() like "above:c3", "below:c4")
         if (VOICING_MODES.includes(word.toLowerCase())) continue;
-        
+
         // Skip scale names (used with .scale())
         if (SCALE_NAMES.includes(word.toLowerCase())) continue;
-        
+
         // Calculate position in document
         // leaf.location_.start.offset is relative to the quoted string, subtract 1 for the quote we added
-        const wordOffset = contentStartOffset + Math.max(0, leaf.location_.start.offset - 1);
-        const wordEndOffset = contentStartOffset + Math.max(0, leaf.location_.end.offset - 1);
-        
+        const wordOffset =
+          contentStartOffset + Math.max(0, leaf.location_.start.offset - 1);
+        const wordEndOffset =
+          contentStartOffset + Math.max(0, leaf.location_.end.offset - 1);
+
         const pos = document.positionAt(wordOffset);
         const endPos = document.positionAt(wordEndOffset);
         const range = Range.create(pos, endPos);
         const key = `${range.start.line}:${range.start.character}`;
-        
+
         // Find similar samples for suggestion
         const suggestions = findSimilar(word, samples);
-        
+
         const diagnostic: Diagnostic = {
-          severity: suggestions.length > 0 ? DiagnosticSeverity.Warning : DiagnosticSeverity.Hint,
+          severity:
+            suggestions.length > 0
+              ? DiagnosticSeverity.Warning
+              : DiagnosticSeverity.Hint,
           range,
-          message: suggestions.length > 0
-            ? `Unknown sample '${word}'. Did you mean: ${suggestions.join(', ')}?`
-            : `Unknown sample '${word}' (may work if loaded dynamically)`,
-          source: 'strudel',
-          code: 'unknown-sample',
+          message:
+            suggestions.length > 0
+              ? `Unknown sample '${word}'. Did you mean: ${suggestions.join(", ")}?`
+              : `Unknown sample '${word}' (may work if loaded dynamically)`,
+          source: "strudel",
+          code: "unknown-sample",
         };
-        
+
         diagnostics.push(diagnostic);
-        docData.set(key, { type: 'unknown_sample', word, suggestions });
+        docData.set(key, { type: "unknown_sample", word, suggestions });
       }
     } else if (!parseResult.success) {
       // Fallback: if parsing failed, still try to identify unknown samples with simple regex
       // This helps users even when there are syntax errors
-      const words = content.split(/[\s\[\]\{\}\(\)<>:*\/!?@~,|]+/).filter(w => w && !/^[0-9.-]+$/.test(w));
+      const words = content
+        .split(/[\s\[\]\{\}\(\)<>:*\/!?@~,|]+/)
+        .filter((w) => w && !/^[0-9.-]+$/.test(w));
       for (const word of words) {
         // Skip if it looks like a note
         if (/^[a-g][sb]?[0-9]?$/i.test(word)) continue;
         // Skip if it's a known sample
-        if (samples.some(s => s.toLowerCase() === word.toLowerCase())) continue;
+        if (samples.some((s) => s.toLowerCase() === word.toLowerCase()))
+          continue;
         // Skip if it's a known bank
-        if (dynamicBanks.some(b => b.toLowerCase() === word.toLowerCase())) continue;
+        if (dynamicBanks.some((b) => b.toLowerCase() === word.toLowerCase()))
+          continue;
         // Skip common words/operators
-        if (['x', 't', 'f', 'r', '-', '_'].includes(word.toLowerCase())) continue;
+        if (["x", "t", "f", "r", "-", "_"].includes(word.toLowerCase()))
+          continue;
         // Skip if it looks like a variable reference
         if (/^[A-Z]/.test(word)) continue;
         // Skip voicing modes and scale names
         if (VOICING_MODES.includes(word.toLowerCase())) continue;
         if (SCALE_NAMES.includes(word.toLowerCase())) continue;
-        
+
         // Find position of this word in content
         const wordIndex = content.indexOf(word);
         if (wordIndex !== -1) {
           const pos = document.positionAt(contentStartOffset + wordIndex);
-          const range = Range.create(pos, Position.create(pos.line, pos.character + word.length));
+          const range = Range.create(
+            pos,
+            Position.create(pos.line, pos.character + word.length),
+          );
           const key = `${range.start.line}:${range.start.character}`;
-          
+
           // Skip if we already reported this location
           if (docData.has(key)) continue;
-          
+
           // Find similar samples for suggestion
           const suggestions = findSimilar(word, samples);
-          
+
           const diagnostic: Diagnostic = {
-            severity: suggestions.length > 0 ? DiagnosticSeverity.Warning : DiagnosticSeverity.Hint,
+            severity:
+              suggestions.length > 0
+                ? DiagnosticSeverity.Warning
+                : DiagnosticSeverity.Hint,
             range,
-            message: suggestions.length > 0
-              ? `Unknown sample '${word}'. Did you mean: ${suggestions.join(', ')}?`
-              : `Unknown sample '${word}' (may work if loaded dynamically)`,
-            source: 'strudel',
-            code: 'unknown-sample',
+            message:
+              suggestions.length > 0
+                ? `Unknown sample '${word}'. Did you mean: ${suggestions.join(", ")}?`
+                : `Unknown sample '${word}' (may work if loaded dynamically)`,
+            source: "strudel",
+            code: "unknown-sample",
           };
-          
+
           diagnostics.push(diagnostic);
-          docData.set(key, { type: 'unknown_sample', word, suggestions });
+          docData.set(key, { type: "unknown_sample", word, suggestions });
         }
       }
     }
   }
-  
+
   // Check function calls outside strings
   const funcCallRegex = /\.([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/g;
   while ((match = funcCallRegex.exec(text)) !== null) {
     const funcName = match[1];
     const funcStart = match.index + 1; // After the dot
-    
+
     // Skip if known function (built-in or user-defined)
     if (allFunctionNames.includes(funcName)) continue;
     // Skip common method names
-    if (['then', 'catch', 'map', 'filter', 'forEach', 'reduce', 'log', 'error', 'warn'].includes(funcName)) continue;
-    
+    if (
+      [
+        "then",
+        "catch",
+        "map",
+        "filter",
+        "forEach",
+        "reduce",
+        "log",
+        "error",
+        "warn",
+      ].includes(funcName)
+    )
+      continue;
+
     const suggestions = findSimilar(funcName, functionNames);
-    
+
     if (suggestions.length > 0) {
       const pos = document.positionAt(funcStart);
-      const range = Range.create(pos, Position.create(pos.line, pos.character + funcName.length));
+      const range = Range.create(
+        pos,
+        Position.create(pos.line, pos.character + funcName.length),
+      );
       const key = `${range.start.line}:${range.start.character}`;
-      
+
       diagnostics.push({
         severity: DiagnosticSeverity.Warning,
         range,
-        message: `Unknown function '${funcName}'. Did you mean: ${suggestions.join(', ')}?`,
-        source: 'strudel',
-        code: 'unknown-function',
+        message: `Unknown function '${funcName}'. Did you mean: ${suggestions.join(", ")}?`,
+        source: "strudel",
+        code: "unknown-function",
       });
-      
-      docData.set(key, { type: 'unknown_function', word: funcName, suggestions });
+
+      docData.set(key, {
+        type: "unknown_function",
+        word: funcName,
+        suggestions,
+      });
     }
   }
-  
+
   diagnosticDataMap.set(document.uri, docData);
   connection.sendDiagnostics({ uri: document.uri, diagnostics });
 }
@@ -8071,16 +10611,16 @@ async function validateDocument(document: TextDocument): Promise<void> {
 connection.onCodeAction((params: CodeActionParams): CodeAction[] => {
   const document = documents.get(params.textDocument.uri);
   if (!document) return [];
-  
+
   const actions: CodeAction[] = [];
   const docData = diagnosticDataMap.get(document.uri);
-  
+
   for (const diagnostic of params.context.diagnostics) {
-    if (diagnostic.source !== 'strudel') continue;
-    
+    if (diagnostic.source !== "strudel") continue;
+
     const key = `${diagnostic.range.start.line}:${diagnostic.range.start.character}`;
     const data = docData?.get(key);
-    
+
     if (data?.suggestions && data.suggestions.length > 0) {
       for (const suggestion of data.suggestions) {
         actions.push({
@@ -8099,7 +10639,7 @@ connection.onCodeAction((params: CodeActionParams): CodeAction[] => {
       }
     }
   }
-  
+
   return actions;
 });
 
@@ -8138,4 +10678,4 @@ documents.listen(connection);
 // Listen on the connection
 connection.listen();
 
-console.error('[strudel-lsp] Server started');
+console.error("[strudel-lsp] Server started");
