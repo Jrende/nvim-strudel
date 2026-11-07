@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/
 /**
  * LSP server for Strudel mini-notation
  * Provides completions, hover, diagnostics, signature help, and code actions
@@ -778,6 +778,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "function getSource",
+            documentation: "",
           },
         ],
       },
@@ -811,6 +812,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "number value",
+            documentation: "",
           },
         ],
       },
@@ -911,6 +913,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "number harmonicity",
+            documentation: "",
           },
         ],
       },
@@ -1338,6 +1341,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "number depth",
+            documentation: "",
           },
         ],
       },
@@ -1402,6 +1406,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "number amount",
+            documentation: "",
           },
         ],
       },
@@ -1534,6 +1539,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "number pulsewidth",
+            documentation: "",
           },
         ],
       },
@@ -1550,6 +1556,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "number rate",
+            documentation: "",
           },
         ],
       },
@@ -1566,6 +1573,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "number sweep",
+            documentation: "",
           },
         ],
       },
@@ -2530,6 +2538,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "number amount",
+            documentation: "",
           },
         ],
       },
@@ -2546,6 +2555,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "number numvoices",
+            documentation: "",
           },
         ],
       },
@@ -2811,6 +2821,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "number number",
+            documentation: "",
           },
         ],
       },
@@ -2827,6 +2838,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "number number",
+            documentation: "",
           },
         ],
       },
@@ -2843,6 +2855,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "number number",
+            documentation: "",
           },
         ],
       },
@@ -3013,6 +3026,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "number level",
+            documentation: "",
           },
         ],
       },
@@ -3096,6 +3110,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "string speed",
+            documentation: "",
           },
         ],
       },
@@ -3999,6 +4014,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
   {
     name: "_euclidRot",
     detail: "_euclidRot",
+    documentation: "",
     signatures: [
       {
         label: "_euclidRot()",
@@ -4029,6 +4045,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
           },
           {
             label: "undefined pat",
+            documentation: "",
           },
         ],
       },
@@ -4142,9 +4159,11 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "function whole_func",
+            documentation: "",
           },
           {
             label: "function func",
+            documentation: "",
           },
         ],
       },
@@ -4161,6 +4180,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "Pattern pat_val",
+            documentation: "",
           },
         ],
       },
@@ -4177,6 +4197,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "Pattern pat_val",
+            documentation: "",
           },
         ],
       },
@@ -4193,6 +4214,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "Pattern pat_val",
+            documentation: "",
           },
         ],
       },
@@ -4275,6 +4297,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "function func",
+            documentation: "",
           },
         ],
       },
@@ -4308,6 +4331,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "function func",
+            documentation: "",
           },
         ],
       },
@@ -4324,6 +4348,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "function func",
+            documentation: "",
           },
         ],
       },
@@ -4340,6 +4365,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "* context",
+            documentation: "",
           },
         ],
       },
@@ -4356,6 +4382,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "function func",
+            documentation: "",
           },
         ],
       },
@@ -4423,6 +4450,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "function value_test",
+            documentation: "",
           },
         ],
       },
@@ -4647,6 +4675,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "Pattern pat",
+            documentation: "",
           },
         ],
       },
@@ -4663,6 +4692,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "Pattern pat",
+            documentation: "",
           },
         ],
       },
@@ -4806,9 +4836,11 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "any a",
+            documentation: "",
           },
           {
             label: "any b",
+            documentation: "",
           },
         ],
       },
@@ -4824,9 +4856,11 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "any a",
+            documentation: "",
           },
           {
             label: "any b",
+            documentation: "",
           },
         ],
       },
@@ -4842,9 +4876,11 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "any a",
+            documentation: "",
           },
           {
             label: "any b",
+            documentation: "",
           },
         ],
       },
@@ -4860,9 +4896,11 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "any a",
+            documentation: "",
           },
           {
             label: "any b",
+            documentation: "",
           },
         ],
       },
@@ -4878,9 +4916,11 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "any a",
+            documentation: "",
           },
           {
             label: "any b",
+            documentation: "",
           },
         ],
       },
@@ -4896,9 +4936,11 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "any a",
+            documentation: "",
           },
           {
             label: "any b",
+            documentation: "",
           },
         ],
       },
@@ -4914,9 +4956,11 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "any a",
+            documentation: "",
           },
           {
             label: "any b",
+            documentation: "",
           },
         ],
       },
@@ -4932,9 +4976,11 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "any a",
+            documentation: "",
           },
           {
             label: "any b",
+            documentation: "",
           },
         ],
       },
@@ -4950,9 +4996,11 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "any a",
+            documentation: "",
           },
           {
             label: "any b",
+            documentation: "",
           },
         ],
       },
@@ -4968,9 +5016,11 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "any a",
+            documentation: "",
           },
           {
             label: "any b",
+            documentation: "",
           },
         ],
       },
@@ -5051,6 +5101,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "number steps",
+            documentation: "",
           },
         ],
       },
@@ -5709,9 +5760,11 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "number subdivision",
+            documentation: "",
           },
           {
             label: "number offset",
+            documentation: "",
           },
         ],
       },
@@ -5727,6 +5780,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "number subdivision",
+            documentation: "",
           },
         ],
       },
@@ -5754,9 +5808,11 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "Pattern binary_pat",
+            documentation: "",
           },
           {
             label: "function func",
+            documentation: "",
           },
         ],
       },
@@ -6896,9 +6952,11 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "Pattern pat",
+            documentation: "",
           },
           {
             label: "* xs",
+            documentation: "",
           },
         ],
       },
@@ -6915,9 +6973,11 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "Pattern pat",
+            documentation: "",
           },
           {
             label: "* xs",
+            documentation: "",
           },
         ],
       },
@@ -6934,6 +6994,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "Pattern pat",
+            documentation: "",
           },
           {
             label: "Pattern lookup",
@@ -6959,6 +7020,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "Pattern pat",
+            documentation: "",
           },
           {
             label: "Pattern lookup",
@@ -6984,9 +7046,11 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "Pattern pat",
+            documentation: "",
           },
           {
             label: "* xs",
+            documentation: "",
           },
         ],
       },
@@ -7003,9 +7067,11 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "Pattern pat",
+            documentation: "",
           },
           {
             label: "* xs",
+            documentation: "",
           },
         ],
       },
@@ -7022,9 +7088,11 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "Pattern pat",
+            documentation: "",
           },
           {
             label: "* xs",
+            documentation: "",
           },
         ],
       },
@@ -7041,9 +7109,11 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "Pattern pat",
+            documentation: "",
           },
           {
             label: "* xs",
+            documentation: "",
           },
         ],
       },
@@ -7060,9 +7130,11 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "Pattern pat",
+            documentation: "",
           },
           {
             label: "* xs",
+            documentation: "",
           },
         ],
       },
@@ -7079,9 +7151,11 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "Pattern pat",
+            documentation: "",
           },
           {
             label: "* xs",
+            documentation: "",
           },
         ],
       },
@@ -7098,9 +7172,11 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "Pattern pat",
+            documentation: "",
           },
           {
             label: "* xs",
+            documentation: "",
           },
         ],
       },
@@ -7117,9 +7193,11 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "Pattern pat",
+            documentation: "",
           },
           {
             label: "* xs",
+            documentation: "",
           },
         ],
       },
@@ -7136,9 +7214,11 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "Pattern pat",
+            documentation: "",
           },
           {
             label: "* xs",
+            documentation: "",
           },
         ],
       },
@@ -7188,6 +7268,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
   {
     name: "getTime",
     detail: "getTime/internals",
+    documentation: "",
     signatures: [
       {
         label: "getTime()",
@@ -7198,6 +7279,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
   {
     name: "getClockTime",
     detail: "getClockTime/internals",
+    documentation: "",
     signatures: [
       {
         label: "getClockTime()",
@@ -7208,6 +7290,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
   {
     name: "getCps",
     detail: "getCps/internals",
+    documentation: "",
     signatures: [
       {
         label: "getCps()",
@@ -7225,6 +7308,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "* func",
+            documentation: "",
           },
         ],
       },
@@ -7713,9 +7797,11 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "Pattern pat",
+            documentation: "",
           },
           {
             label: "* xs",
+            documentation: "",
           },
         ],
       },
@@ -7732,9 +7818,11 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "Pattern pat",
+            documentation: "",
           },
           {
             label: "* xs",
+            documentation: "",
           },
         ],
       },
@@ -7767,6 +7855,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "any xs",
+            documentation: "",
           },
         ],
       },
@@ -7783,6 +7872,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "any xs",
+            documentation: "",
           },
         ],
       },
@@ -7863,9 +7953,11 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "Pattern test",
+            documentation: "",
           },
           {
             label: "Pattern testAgainst",
+            documentation: "",
           },
         ],
       },
@@ -8153,6 +8245,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
   {
     name: "midi2note",
     detail: "midi2note/noautocomplete",
+    documentation: "",
     signatures: [
       {
         label: "midi2note()",
@@ -8171,6 +8264,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "Hap input",
+            documentation: "",
           },
         ],
       },
@@ -8372,27 +8466,35 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "number hapcircles",
+            documentation: "",
           },
           {
             label: "number circle",
+            documentation: "",
           },
           {
             label: "number edo",
+            documentation: "",
           },
           {
             label: "string root",
+            documentation: "",
           },
           {
             label: "number thickness",
+            documentation: "",
           },
           {
             label: "number hapRadius",
+            documentation: "",
           },
           {
             label: "string mode",
+            documentation: "",
           },
           {
             label: "number margin",
+            documentation: "",
           },
         ],
       },
@@ -8507,6 +8609,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
   {
     name: "MidiInput",
     detail: "MidiInput",
+    documentation: "",
     signatures: [
       {
         label: "MidiInput(input)",
@@ -8641,6 +8744,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "Array.<Input> devices",
+            documentation: "",
           },
         ],
       },
@@ -8657,9 +8761,11 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "string indexOrName",
+            documentation: "",
           },
           {
             label: "Array.<Input> devices",
+            documentation: "",
           },
         ],
       },
@@ -8860,6 +8966,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
   {
     name: "OLAProcessor",
     detail: "OLAProcessor",
+    documentation: "",
     signatures: [
       {
         label: "OLAProcessor()",
@@ -9017,15 +9124,19 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "AudioBuffer input",
+            documentation: "",
           },
           {
             label: "number lpFreqStart",
+            documentation: "",
           },
           {
             label: "number lpFreqEnd",
+            documentation: "",
           },
           {
             label: "number lpFreqEndAt",
+            documentation: "",
           },
           {
             label: "function callback",
@@ -9039,12 +9150,14 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
   {
     name: "getAllChannelData",
     detail: "getAllChannelData",
+    documentation: "",
     signatures: [
       {
         label: "getAllChannelData(buffer)",
         parameters: [
           {
             label: "AudioBuffer buffer",
+            documentation: "",
           },
         ],
       },
@@ -9053,6 +9166,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
   {
     name: "randomSample",
     detail: "randomSample",
+    documentation: "",
     signatures: [
       {
         label: "randomSample()",
@@ -9071,6 +9185,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "string sampleName",
+            documentation: "",
           },
           {
             label: "number (optional)",
@@ -9498,6 +9613,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "string scale",
+            documentation: "",
           },
         ],
       },
@@ -9514,6 +9630,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "string scaleNameOrRatios",
+            documentation: "",
           },
         ],
       },
@@ -9530,6 +9647,7 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "number base",
+            documentation: "",
           },
           {
             label: "number (optional)",
@@ -9550,21 +9668,13 @@ const STRUDEL_FUNCTIONS: FunctionSignature[] = [
         parameters: [
           {
             label: "number amt",
+            documentation: "",
           },
           {
             label: "number edoSize",
             documentation: "<p>(optional)</p>",
           },
         ],
-      },
-    ],
-  },
-  {
-    detail: "package:undefined",
-    signatures: [
-      {
-        label: "undefined()",
-        parameters: [],
       },
     ],
   },
